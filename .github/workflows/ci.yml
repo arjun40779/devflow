@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_ENV: test
+
+jobs:
+  ci:
+    name: Lint, typecheck, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm turbo run lint --ui=stream
+
+      - name: Typecheck
+        run: pnpm turbo run typecheck --ui=stream
+
+      - name: Test
+        run: pnpm turbo run test --ui=stream
+
+      - name: Build
+        run: pnpm turbo run build --ui=stream
