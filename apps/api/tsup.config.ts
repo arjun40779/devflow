@@ -9,5 +9,8 @@ export default defineConfig({
   sourcemap: true,
   minify: false,
   // Bundle internal workspace packages (shipped as TS source) into the output.
-  noExternal: [/^@devflow\//],
+  // @devflow/database is excluded: it resolves its migrations folder relative
+  // to its own file location at runtime, which only works if it stays an
+  // external (node_modules-resolved) package rather than getting inlined.
+  noExternal: [/^@devflow\/(?!database)/],
 });

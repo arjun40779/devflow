@@ -1,4 +1,4 @@
-import fastify, { type FastifyInstance } from 'fastify';
+import fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import sensible from '@fastify/sensible';
@@ -8,16 +8,22 @@ import {
   validatorCompiler,
   type ZodTypeProvider,
 } from 'fastify-type-provider-zod';
+import { createLogger } from '@devflow/observability';
 import { env } from './config/env';
 import { openapiPlugin } from './plugins/openapi';
+import { correlationPlugin } from './plugins/correlation';
+import { databasePlugin } from './plugins/database';
+import { queuePlugin } from './plugins/queue';
+import { outboxRelayPlugin } from './plugins/outbox-relay';
 import { registerRoutes } from './routes';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = fastify({
-    logger: {
+    loggerInstance: createLogger({
+      name: 'api',
       level: env.LOG_LEVEL,
-      transport: env.NODE_ENV === 'development' ? { target: 'pino-pretty' } : undefined,
-    },
+      pretty: env.NODE_ENV === 'development',
+    }) as FastifyBaseLogger,
   }).withTypeProvider<ZodTypeProvider>();
 
   // Use Zod as the validation + serialization engine for all routes.
@@ -30,6 +36,15 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(helmet, { contentSecurityPolicy: false });
   await app.register(cors, { origin: true });
   await app.register(rateLimit, { max: 100, timeWindow: '1 minute' });
+
+  // Threads a correlation id through every request (and jobs it enqueues).
+  await app.register(correlationPlugin);
+
+  // Foundation infrastructure: Postgres, Redis/BullMQ, then the outbox
+  // relay + worker that depend on both being available.
+  await app.register(databasePlugin);
+  await app.register(queuePlugin);
+  await app.register(outboxRelayPlugin);
 
   // API docs (OpenAPI + Scalar).
   await app.register(openapiPlugin);
