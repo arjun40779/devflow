@@ -32,7 +32,7 @@ describe('defineRoute', () => {
 
     expect(enqueue).toHaveBeenCalledWith(
       { pullRequestId: 'pr-1', organizationId: 'org-1' },
-      { jobId: `ai-review:${event.id}`, correlationId: 'corr-1' },
+      { jobId: `ai-review.${event.id}`, correlationId: 'corr-1' },
     );
   });
 

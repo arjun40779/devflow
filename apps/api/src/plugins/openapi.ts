@@ -19,7 +19,10 @@ export const openapiPlugin = fp(async (app) => {
           'Routes are versioned under `/api/v{n}`.',
         version: '0.0.0',
       },
-      tags: [{ name: 'Health', description: 'Liveness and readiness probes for the service.' }],
+      tags: [
+        { name: 'Health', description: 'Liveness and readiness probes for the service.' },
+        { name: 'System', description: 'Foundation-proving endpoints (Wave 0), not domain APIs.' },
+      ],
     },
     transform: jsonSchemaTransform,
   });

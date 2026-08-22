@@ -200,6 +200,18 @@ importers:
       '@devflow/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@devflow/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+      '@devflow/events':
+        specifier: workspace:*
+        version: link:../../packages/events
+      '@devflow/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
+      '@devflow/queue':
+        specifier: workspace:*
+        version: link:../../packages/queue
       '@fastify/cors':
         specifier: 'catalog:'
         version: 10.1.0

@@ -6,6 +6,8 @@ const envSchema = z.object({
   HOST: sharedEnv.host(),
   PORT: sharedEnv.port(4000),
   LOG_LEVEL: sharedEnv.logLevel(),
+  DATABASE_URL: sharedEnv.requiredString(),
+  REDIS_URL: sharedEnv.requiredString(),
 });
 
 export type Env = z.infer<typeof envSchema>;
