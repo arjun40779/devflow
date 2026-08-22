@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
+import type { ReactNode } from 'react';
 import { AppProviders } from '@/lib/providers/app-providers';
 import './globals.css';
 
@@ -21,7 +22,7 @@ export const metadata: Metadata = {
   description: 'Developer workflow orchestration — ticket to merge in one surface.',
 };
 
-export default function RootLayout({ children }: LayoutProps<'/'>) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="en"
