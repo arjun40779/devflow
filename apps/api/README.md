@@ -1,6 +1,6 @@
 # @devflow/api
 
-The DevFlow backend HTTP API — a **Fastify + TypeScript modular monolith** (see [`project.md`](../../project.md) §5, §9).
+The DevFlow backend HTTP API — a **Fastify + TypeScript modular monolith** (see [`project.md`](../../project.md) §4, §7).
 
 ## Tech
 
@@ -17,9 +17,9 @@ The DevFlow backend HTTP API — a **Fastify + TypeScript modular monolith** (se
 
 ### Why Drizzle over Knex
 
-Drizzle infers types end-to-end (schema → query → result), matching the shared-TypeScript-types goal (§40). Knex is an untyped query builder that would require hand-maintained types. Database access is **not** implemented in this app — it belongs in `packages/database` and is consumed here.
+Drizzle infers types end-to-end (schema → query → result), matching the shared-TypeScript-types goal (§15). Knex is an untyped query builder that would require hand-maintained types. Database access is **not** implemented in this app — it belongs in `packages/database` and is consumed here.
 
-## Folder structure (module-oriented, §9)
+## Folder structure (module-oriented, §7)
 
 Routes live **outside** the modules, grouped by API version: `routes/v<n>/<module>/{router,schema}`. Modules hold only the **service** and **dal** layers.
 
@@ -57,21 +57,37 @@ apps/api/
 
 Dependency direction is one-way: **route → service → dal**. Adding a new API version means adding `routes/v2/<module>/` plus a `routes/v2/index.ts` aggregator — existing versions and module services are untouched.
 
-### Canonical domain module layout
+### Database & the DAL vs `packages/database`
 
-`health` is intentionally lightweight. Real domain modules (e.g. `work-items`) follow the fuller layered pattern from `project.md` §9:
+The DAL didn't move — it splits into two complementary layers:
 
-```text
-modules/work-items/
-├── domain/            # entities, value objects, state machine — no framework
-├── application/       # use cases / services (orchestrate domain + ports)
-├── infrastructure/    # repositories, external adapters (Drizzle, ports impls)
-├── http/              # routes, controllers, request/response schemas
-├── events/            # domain event publishers/handlers
-└── __tests__/
+- **`packages/database`** owns the shared database foundation: the Drizzle **client factory** (`createDatabase(url)`), the **schema** (all table definitions), and **migrations**. One connection config, one schema graph, one migration history — shared by `api` and `worker`.
+- **`modules/<m>/dal`** owns **module-specific queries** (a thin repository) built on top of that shared client + schema.
+
+The app creates the `Database` instance once at bootstrap from `DATABASE_URL` and passes it into services/dal (injected, not imported as a global) so the dal stays pure and testable.
+
+```ts
+// modules/work-items/dal/work-items.dal.ts
+import { schema, type Database } from '@devflow/database';
+import { eq } from 'drizzle-orm';
+
+export function findWorkItem(db: Database, id: string) {
+  return db.query.workItems.findFirst({ where: eq(schema.workItems.id, id) });
+}
 ```
 
-Business logic depends on **ports**, never vendor SDKs (§3.8, §11a).
+Why schema + migrations are centralized (not per-module): migrations need a single ordered history and one `drizzle-kit` config, and cross-domain foreign keys need one schema graph. Query logic stays in the module so modules remain cohesive and the dal remains swappable.
+
+### File naming convention
+
+- Route layer (folder gives context): `routes/v<n>/<module>/router.ts` + `schema.ts`.
+- Module layers (prefixed for searchability): `modules/<module>/service/<module>.service.ts`, `modules/<module>/dal/<module>.dal.ts`.
+
+### Deeper module layering (optional)
+
+`health` is intentionally lightweight. A domain-heavy module (e.g. `work-items`) may add sub-layers under the module — e.g. a `domain/` folder for the state machine and value objects, and `events/` for domain-event publishers — but it still exposes only its **service** to the route layer and reaches Postgres only through its **dal**.
+
+Business logic depends on **ports**, never vendor SDKs (§3, §8).
 
 ## Getting started
 
@@ -108,10 +124,11 @@ pnpm --filter @devflow/api dev
 
 ## Adding a module
 
-1. Create the business layers under `src/modules/<name>/`: `service/<name>.service.ts` and `dal/<name>.dal.ts`.
-2. Create the HTTP layer under `src/routes/v1/<name>/`: `router.ts` and `schema.ts`.
-3. Register the router in `src/routes/v1/index.ts`.
-4. Add tests under the module's `__tests__/`.
+1. If the module needs tables, add them to the `packages/database` schema and generate a migration (`pnpm --filter @devflow/database db:generate`).
+2. Create the business layers under `src/modules/<name>/`: `service/<name>.service.ts` and `dal/<name>.dal.ts` (the dal imports the client + schema from `@devflow/database`).
+3. Create the HTTP layer under `src/routes/v1/<name>/`: `router.ts` and `schema.ts`.
+4. Register the router in `src/routes/v1/index.ts`.
+5. Add tests under the module's `__tests__/`.
 
 See [`docs/api-docs-and-testing.md`](docs/api-docs-and-testing.md) for the API
 documentation and testing conventions (required route fields, tags, and the
