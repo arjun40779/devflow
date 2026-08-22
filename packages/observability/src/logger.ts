@@ -1,9 +1,9 @@
-import pino, { type Logger, type Level } from 'pino';
+import pino, { type Logger, type LevelWithSilent } from 'pino';
 import { getCorrelationId } from './context';
 
 export interface CreateLoggerOptions {
   name?: string;
-  level?: Level;
+  level?: LevelWithSilent;
   /** Pretty-print output (dev). The consuming app must provide `pino-pretty`. */
   pretty?: boolean;
 }
@@ -26,4 +26,4 @@ export function createLogger(options: CreateLoggerOptions = {}): Logger {
   });
 }
 
-export type { Logger, Level };
+export type { Logger, LevelWithSilent };
