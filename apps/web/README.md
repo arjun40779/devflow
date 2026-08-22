@@ -1,7 +1,7 @@
 # `@devflow/web` — Next.js frontend
 
 **Wave:** 5 (Frontend) · **Status:** Scaffold  
-**Architecture refs:** `project.md` §4, §31–§34 · `phase-1.md` §8
+**Architecture refs:** `project.md` §4, §6, §9 · `phase-1.md` §8
 
 The web app is the developer workflow surface: connect tools, manage tickets, start work, review PRs, and follow the activity timeline. It is a **feature-module-oriented** Next.js App Router application inside the Devflow pnpm monorepo.
 
@@ -9,21 +9,21 @@ The web app is the developer workflow surface: connect tools, manage tickets, st
 
 ## Stack
 
-Aligned with `project.md` §4 (Recommended Technology Stack):
+Aligned with `project.md` §4 (Tech Stack):
 
-| Technology | Role in this app |
-| --- | --- |
-| **Next.js 16** | App Router, SSR/SSG, routing, bundling (Turbopack in dev) |
-| **React 19** | UI runtime |
-| **TypeScript** | Strict typing via `@devflow/tsconfig` |
-| **Tailwind CSS 4** | Utility-first styling (`@tailwindcss/postcss`) |
-| **TanStack Query** | Server-state, caching, background refetch |
-| **Zod** | Runtime validation (forms + API boundaries) |
-| **React Hook Form** | Complex forms (integrations, work items) |
-| **Motion** | UI transitions (`motion` package) |
-| **Vitest** | Unit and component tests |
-| **Playwright** | End-to-end tests |
-| **ESLint** | `@devflow/eslint-config/next` (core-web-vitals + TypeScript) |
+| Technology          | Role in this app                                             |
+| ------------------- | ------------------------------------------------------------ |
+| **Next.js 16**      | App Router, SSR/SSG, routing, bundling (Turbopack in dev)    |
+| **React 19**        | UI runtime                                                   |
+| **TypeScript**      | Strict typing via `@devflow/tsconfig`                        |
+| **Tailwind CSS 4**  | Utility-first styling (`@tailwindcss/postcss`)               |
+| **TanStack Query**  | Server-state, caching, background refetch                    |
+| **Zod**             | Runtime validation (forms + API boundaries)                  |
+| **React Hook Form** | Complex forms (integrations, work items)                     |
+| **Motion**          | UI transitions (`motion` package)                            |
+| **Vitest**          | Unit and component tests                                     |
+| **Playwright**      | End-to-end tests                                             |
+| **ESLint**          | `@devflow/eslint-config/next` (core-web-vitals + TypeScript) |
 
 ---
 
@@ -44,13 +44,13 @@ devflow/
 - **Import alias:** `@/*` → project root of `apps/web`
 - **API base URL:** `NEXT_PUBLIC_API_URL` (default `http://localhost:4000`)
 
-The frontend never imports vendor SDKs (GitHub, Slack, etc.). It talks to `apps/api` over REST; the API owns integrations via ports & adapters (`project.md` §11a).
+The frontend never imports vendor SDKs (GitHub, Slack, etc.). It talks to `apps/api` over REST; the API owns integrations via ports & adapters (`project.md` §8).
 
 ---
 
 ## Directory structure
 
-Feature-oriented layout from `project.md` §4 — routes compose modules; business logic stays out of generic UI primitives.
+Feature-oriented layout (`project.md` §6) — routes compose modules; business logic stays out of generic UI primitives.
 
 ```text
 apps/web/
@@ -63,14 +63,14 @@ apps/web/
 │   │   └── login/
 │   └── (dashboard)/        # Authenticated shell (shared nav)
 │       ├── layout.tsx
-│       ├── dashboard/      # /dashboard — My Work (§32)
+│       ├── dashboard/      # /dashboard — My Work (§9)
 │       ├── work-items/     # /work-items
 │       ├── projects/       # /projects
 │       ├── reviews/        # /reviews
 │       ├── integrations/   # /integrations
 │       └── settings/       # /settings
 │
-├── modules/                # Feature modules (§31) — hooks, queries, feature UI
+├── modules/                # Feature modules (§6) — hooks, queries, feature UI
 │   ├── dashboard/
 │   ├── work-items/
 │   ├── projects/
@@ -110,7 +110,7 @@ apps/web/
 4. **`components/layout`** — app chrome shared across dashboard routes.
 5. **`lib/`** — cross-cutting utilities with no UI. No business rules that belong in `modules/`.
 
-This matches `project.md` §31: *"Avoid putting business logic into generic UI components."*
+This keeps business logic in `modules/`, not in generic UI primitives.
 
 ---
 
@@ -123,7 +123,7 @@ This matches `project.md` §31: *"Avoid putting business logic into generic UI c
  Next.js (apps/web)
     │  TanStack Query  ──► REST ──► apps/api (Fastify)
     │  React Hook Form + Zod
-    │  SSE (Phase 1 §40a) ──► live timeline / org events
+    │  SSE (realtime, §12) ──► live timeline / org events
     ▼
  PostgreSQL / Redis / Workers (authoritative state lives behind API)
 ```
@@ -134,27 +134,27 @@ This matches `project.md` §31: *"Avoid putting business logic into generic UI c
 
 - **QueryProvider** — TanStack Query client (stale time, refetch defaults)
 
-Additional providers (session, theme, realtime) are added as Waves 1 and §40a land.
+Additional providers (session, theme, realtime) are added as Wave 1 and realtime (§12) land.
 
 ### Data fetching convention
 
 - Server Components where static/SSR fits; client components + TanStack Query for interactive server state.
-- Query keys scoped by organization: `['org', orgId, 'work-items', …]` (multi-tenant isolation mirrors API §25b).
+- Query keys scoped by organization: `['org', orgId, 'work-items', …]` (multi-tenant isolation mirrors API §11).
 - Zod validates API responses at the boundary before data enters the UI.
 
 ---
 
 ## Phase 1 feature map (`phase-1.md` §8)
 
-| UI area | Route | Backend dependency | `project.md` |
-| --- | --- | --- | --- |
-| App shell + auth | `(auth)`, org switcher in shell | Wave 1 Identity | §4, §10.1 |
-| Integrations settings | `/integrations` | Wave 2 providers | §11a, §12–§14b |
-| Developer dashboard | `/dashboard` | Work Items API | §32 |
-| Work items | `/work-items` | Work Items + Ticket AI | §10.4, §15 |
-| PR review | `/reviews` | Dev workflow + AI review | §33 |
-| Activity timeline | work-item detail (module) | Activity API | §34 |
-| Realtime updates | SSE client | Events + Redis pub/sub | §40a |
+| UI area               | Route                           | Backend dependency       | `project.md` |
+| --------------------- | ------------------------------- | ------------------------ | ------------ |
+| App shell + auth      | `(auth)`, org switcher in shell | Wave 1 Identity          | §6, §9       |
+| Integrations settings | `/integrations`                 | Wave 2 providers         | §8           |
+| Developer dashboard   | `/dashboard`                    | Work Items API           | §9           |
+| Work items            | `/work-items`                   | Work Items + Ticket AI   | §9           |
+| PR review             | `/reviews`                      | Dev workflow + AI review | §9           |
+| Activity timeline     | work-item detail (module)       | Activity API             | §9           |
+| Realtime updates      | SSE client                      | Events + Redis pub/sub   | §12          |
 
 Placeholder routes exist today; modules fill in as each wave’s API endpoints ship (`phase-1.md` §9).
 
@@ -188,10 +188,10 @@ pnpm test
 
 ## Environment variables
 
-| Variable | Required | Default | Purpose |
-| --- | --- | --- | --- |
-| `NEXT_PUBLIC_API_URL` | No | `http://localhost:4000` | Devflow API origin |
-| `PLAYWRIGHT_BASE_URL` | No | `http://localhost:3000` | E2E base URL |
+| Variable              | Required | Default                 | Purpose            |
+| --------------------- | -------- | ----------------------- | ------------------ |
+| `NEXT_PUBLIC_API_URL` | No       | `http://localhost:4000` | Devflow API origin |
+| `PLAYWRIGHT_BASE_URL` | No       | `http://localhost:3000` | E2E base URL       |
 
 Copy `.env.example` when added at repo root; never commit secrets.
 
@@ -199,10 +199,10 @@ Copy `.env.example` when added at repo root; never commit secrets.
 
 ## Testing
 
-| Layer | Tool | Location |
-| --- | --- | --- |
+| Layer            | Tool                     | Location                    |
+| ---------------- | ------------------------ | --------------------------- |
 | Unit / component | Vitest + Testing Library | `**/*.{test,spec}.{ts,tsx}` |
-| E2E | Playwright | `tests/e2e/` |
+| E2E              | Playwright               | `tests/e2e/`                |
 
 E2E `webServer` runs `pnpm dev` locally; in CI set `CI=true` for retries and a fresh server.
 
@@ -220,9 +220,9 @@ E2E `webServer` runs `pnpm dev` locally; in CI set `CI=true` for retries and a f
 
 Per architecture boundaries:
 
-- Vendor SDKs (`@octokit/*`, `@slack/*`, etc.) — API adapters only (`project.md` §11a rule 1).
+- Vendor SDKs (`@octokit/*`, `@slack/*`, etc.) — API adapters only (`project.md` §8, rule 1).
 - Direct database or queue access — all persistence via `apps/api`.
-- Merge/deploy automation without explicit user action — AI is assistant, not authority (§3.6, §27).
+- Merge/deploy automation without explicit user action — AI is assistant, not authority (§3, §11).
 
 ---
 
