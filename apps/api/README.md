@@ -2,18 +2,24 @@
 
 The DevFlow backend HTTP API — a **Fastify + TypeScript modular monolith** (see [`project.md`](../../project.md) §4, §7).
 
+> **New here?** Read [`docs/orchestration.md`](docs/orchestration.md) first — it
+> explains how this app wires `@devflow/config`, `@devflow/observability`,
+> `@devflow/database`, `@devflow/queue`, and `@devflow/events` together (boot
+> sequence, correlation ids, the outbox → relay → queue → worker pipeline).
+
 ## Tech
 
-| Concern     | Choice                                             |
-| ----------- | -------------------------------------------------- |
-| Runtime     | Node.js ≥ 20 (ESM)                                 |
-| HTTP        | Fastify 5                                          |
-| Validation  | Zod via `fastify-type-provider-zod`                |
-| API docs    | OpenAPI (`@fastify/swagger`) + **Scalar** UI       |
-| Database    | Drizzle ORM (lives in `packages/database`, Wave 0) |
-| Logging     | Pino (built into Fastify)                          |
-| Build / dev | `tsup` (bundle) / `tsx` (watch)                    |
-| Tests       | Vitest                                             |
+| Concern     | Choice                                                               |
+| ----------- | -------------------------------------------------------------------- |
+| Runtime     | Node.js ≥ 20 (ESM)                                                   |
+| HTTP        | Fastify 5                                                            |
+| Validation  | Zod via `fastify-type-provider-zod`                                  |
+| API docs    | OpenAPI (`@fastify/swagger`) + **Scalar** UI                         |
+| Database    | Drizzle ORM (lives in `packages/database`, Wave 0)                   |
+| Jobs/events | BullMQ (`@devflow/queue`) + transactional outbox (`@devflow/events`) |
+| Logging     | Pino via `@devflow/observability` (correlation-id aware)             |
+| Build / dev | `tsup` (bundle) / `tsx` (watch)                                      |
+| Tests       | Vitest                                                               |
 
 ### Why Drizzle over Knex
 
@@ -27,23 +33,35 @@ Routes live **outside** the modules, grouped by API version: `routes/v<n>/<modul
 apps/api/
 ├── src/
 │   ├── config/            # env loading & validation (Zod)
-│   ├── plugins/           # cross-cutting Fastify plugins (openapi, ...)
-│   ├── routes/            # HTTP layer, versioned
+│   ├── plugins/           # cross-cutting Fastify plugins
+│   │   ├── correlation.ts     # per-request correlation id (AsyncLocalStorage)
+│   │   ├── database.ts        # createDatabase + runMigrations, app.db
+│   │   ├── queue.ts           # createConnection + configureQueue, app.redis
+│   │   ├── outbox-relay.ts    # starts the relay interval + queue worker(s)
+│   │   └── openapi.ts         # OpenAPI spec + Scalar docs UI
+│   ├── routes/             # HTTP layer, versioned
 │   │   ├── index.ts       # registerRoutes(): mounts each version behind its prefix
 │   │   └── v1/
 │   │       ├── index.ts   # v1Routes(): registers each module's router under /api/v1
-│   │       └── health/
-│   │           ├── router.ts   # HTTP route (calls the module service)
-│   │           └── schema.ts   # Zod request/response schemas (versioned)
+│   │       ├── health/
+│   │       │   ├── router.ts   # HTTP route (calls the module service)
+│   │       │   └── schema.ts   # Zod request/response schemas (versioned)
+│   │       └── system/     # Wave 0 outbox-pipeline proof, see docs/orchestration.md
+│   │           ├── router.ts
+│   │           └── schema.ts
 │   ├── modules/           # feature modules — business + data only
-│   │   └── health/
-│   │       ├── service/
-│   │       │   └── health.service.ts  # business logic (uses dal)
-│   │       ├── dal/
-│   │       │   └── health.dal.ts      # data access layer
-│   │       └── __tests__/
+│   │   ├── health/
+│   │   │   ├── service/
+│   │   │   │   └── health.service.ts  # business logic (uses dal)
+│   │   │   ├── dal/
+│   │   │   │   └── health.dal.ts      # data access layer
+│   │   │   └── __tests__/
+│   │   └── system/         # event + job + route definitions for the ping demo
 │   ├── app.ts             # buildApp(): assembles plugins + routes
 │   └── server.ts          # entrypoint: listen + graceful shutdown
+├── docs/
+│   ├── orchestration.md          # how the foundation packages are wired together
+│   └── api-docs-and-testing.md   # OpenAPI + testing conventions
 ├── tsup.config.ts
 ├── vitest.config.ts
 └── tsconfig.json
@@ -92,10 +110,14 @@ Business logic depends on **ports**, never vendor SDKs (§3, §8).
 ## Getting started
 
 ```bash
-pnpm install                       # from repo root
+docker compose up -d postgres redis   # from repo root — local Postgres + Redis
+pnpm install                          # from repo root
 cp apps/api/.env.example apps/api/.env
 pnpm --filter @devflow/api dev
 ```
+
+On boot, the app connects to Postgres + Redis and runs pending migrations
+automatically (see [`docs/orchestration.md`](docs/orchestration.md) §2).
 
 - API: `http://localhost:4000`
 - Health: `GET http://localhost:4000/api/v1/health`
@@ -115,12 +137,14 @@ pnpm --filter @devflow/api dev
 
 ## Environment
 
-| Var         | Default     | Notes                             |
-| ----------- | ----------- | --------------------------------- |
-| `NODE_ENV`  | development | `development` enables pretty logs |
-| `HOST`      | 0.0.0.0     |                                   |
-| `PORT`      | 4000        |                                   |
-| `LOG_LEVEL` | info        | pino levels                       |
+| Var            | Default      | Notes                                                    |
+| -------------- | ------------ | -------------------------------------------------------- |
+| `NODE_ENV`     | development  | `development` enables pretty logs                        |
+| `HOST`         | 0.0.0.0      |                                                          |
+| `PORT`         | 4000         |                                                          |
+| `LOG_LEVEL`    | info         | pino levels (`silent` allowed)                           |
+| `DATABASE_URL` | _(required)_ | e.g. `postgres://devflow:devflow@localhost:5433/devflow` |
+| `REDIS_URL`    | _(required)_ | e.g. `redis://localhost:6379`                            |
 
 ## Adding a module
 

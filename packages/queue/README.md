@@ -70,6 +70,13 @@ export const aiReview = defineJob({
 await aiReview.enqueue({ prId, organizationId }, { jobId: jobId('ai-review', outboxEventId) });
 ```
 
+## Package relationships
+
+|                 |                                                                                                                                                          |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Depends on**  | _(none)_ — zero internal `@devflow/*` dependencies (BullMQ + ioredis only)                                                                               |
+| **Consumed by** | `@devflow/events` (`defineRoute` maps an event onto a job); `apps/api` (creates the shared Redis connection, calls `configureQueue`, starts job workers) |
+
 ## Scripts
 
 | Script      | Purpose                |
@@ -78,4 +85,4 @@ await aiReview.enqueue({ prId, organizationId }, { jobId: jobId('ai-review', out
 | `test`      | Run Vitest             |
 | `clean`     | Remove build artifacts |
 
-> Not started yet — this document defines the contract; implementation follows.
+> Implemented: `connection.ts`, `queue.ts`, `worker.ts`, `job.ts` (`defineJob`), `ids.ts` (`jobId`). Note the `jobId` delimiter is `.` not `:` — BullMQ rejects custom job ids containing a bare colon.
