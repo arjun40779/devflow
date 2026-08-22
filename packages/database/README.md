@@ -108,6 +108,7 @@ packages/database/
 | --------------------- | --------------------------------------------------------------------------------------- |
 | `createDatabase(url)` | Returns a Drizzle instance bound to the given connection string                         |
 | `closeDatabase(db)`   | Closes the underlying connection pool (graceful shutdown)                               |
+| `runMigrations(db)`   | Applies pending migrations (call once at process boot; resolves its own migrations dir) |
 | `schema`              | Every table definition, namespaced (`schema.organizations`, `schema.outboxEvents`, ...) |
 | `Database`            | The type of the value `createDatabase` returns                                          |
 | `DatabaseTransaction` | The transaction-scoped handle type passed to `db.transaction(async (tx) => ...)`        |
