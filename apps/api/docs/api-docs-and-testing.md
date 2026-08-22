@@ -17,12 +17,12 @@ Docs are generated from code — there is no hand-written spec to keep in sync.
 
 ### Every route MUST declare
 
-| Field         | Rule                                                                 |
-| ------------- | -------------------------------------------------------------------- |
-| `tags`        | Exactly one tag, matching a tag defined in `src/plugins/openapi.ts`. |
-| `summary`     | Short imperative phrase (e.g. "Create a work item").                 |
-| `description` | 1–2 sentences: what it does, key inputs/outputs, side effects.       |
-| `response`    | A Zod schema per status code returned (at least `200`/`201`).        |
+| Field         | Rule                                                                                               |
+| ------------- | -------------------------------------------------------------------------------------------------- |
+| `tags`        | Exactly one tag, matching a tag defined in `src/plugins/openapi.ts`.                               |
+| `summary`     | Short imperative phrase (e.g. "Create a work item").                                               |
+| `description` | 1–2 sentences: what it does, key inputs/outputs, side effects.                                     |
+| `response`    | A Zod schema for each status code returned (`200`/`201` for sync success, `202` for async/outbox). |
 
 ### Schema field descriptions
 

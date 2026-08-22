@@ -5,11 +5,14 @@ Shared, framework-free **domain types** for the DevFlow monorepo (see
 
 ## Contents
 
-| Module   | Exports                                                                                                   |
-| -------- | --------------------------------------------------------------------------------------------------------- |
-| `ids`    | `Brand<T,B>` helper + branded ids (`OrganizationId`, `UserId`, …)                                         |
-| `enums`  | Canonical enum arrays + derived union types (`Role`, `WorkItemStatus`, `Priority`, `IntegrationCategory`) |
-| `events` | `DomainEvent<Type, Payload>` envelope                                                                     |
+| Module  | Exports                                                                                                   |
+| ------- | --------------------------------------------------------------------------------------------------------- |
+| `ids`   | `Brand<T,B>` helper + branded ids (`OrganizationId`, `UserId`, …)                                         |
+| `enums` | Canonical enum arrays + derived union types (`Role`, `WorkItemStatus`, `Priority`, `IntegrationCategory`) |
+
+> The `DomainEvent` envelope lives in [`@devflow/events`](../events/README.md)
+> (it needs correlation/causation/schema-version fields tied to the outbox), not
+> here — this package stays dependency-free.
 
 ## Source of truth
 

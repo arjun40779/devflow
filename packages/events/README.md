@@ -40,7 +40,7 @@ packages/events/
 | `DomainEvent<T,P>`      | The envelope type (see below)                                                          |
 | `publishOutbox(tx, ev)` | Write an event row **within the caller's DB transaction** (no queue I/O)               |
 | `defineRoute(def)`      | Map an event definition to a `@devflow/queue` job (event → queue/job)                  |
-| `relayOutbox(opts)`     | Background loop: claim → publish via routes → mark relayed                             |
+| `relayOutboxOnce(opts)` | One claim → publish-via-routes → mark-relayed cycle (call it on an interval/loop)      |
 
 ## Contracts
 

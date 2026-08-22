@@ -27,7 +27,7 @@ Drizzle infers types end-to-end (schema → query → result), matching the shar
 
 ## Folder structure (module-oriented, §7)
 
-Routes live **outside** the modules, grouped by API version: `routes/v<n>/<module>/{router,schema}`. Modules hold only the **service** and **dal** layers.
+Routes live **outside** the modules, grouped by API version: `routes/v<n>/<module>/{router,schema}`. Modules hold the **service** and **dal** layers; event-driven modules (e.g. `system`) additionally define their `events`, `jobs`, and `routing` (see [`docs/orchestration.md`](docs/orchestration.md) §4).
 
 ```text
 apps/api/
@@ -56,7 +56,14 @@ apps/api/
 │   │   │   ├── dal/
 │   │   │   │   └── health.dal.ts      # data access layer
 │   │   │   └── __tests__/
-│   │   └── system/         # event + job + route definitions for the ping demo
+│   │   └── system/         # event-driven module (Wave 0 outbox proof)
+│   │       ├── events.ts          # defineEvent(system.pinged)
+│   │       ├── jobs/
+│   │       │   └── system-ping.job.ts # defineJob that consumes the event
+│   │       ├── routing.ts         # defineRoute(event → job)
+│   │       └── service/
+│   │           └── system.service.ts  # publishOutbox inside a transaction
+│   ├── __tests__/         # app-wide tests (404s, docs wiring)
 │   ├── app.ts             # buildApp(): assembles plugins + routes
 │   └── server.ts          # entrypoint: listen + graceful shutdown
 ├── docs/
@@ -153,6 +160,7 @@ automatically (see [`docs/orchestration.md`](docs/orchestration.md) §2).
 3. Create the HTTP layer under `src/routes/v1/<name>/`: `router.ts` and `schema.ts`.
 4. Register the router in `src/routes/v1/index.ts`.
 5. Add tests under the module's `__tests__/`.
+6. If the module publishes domain events, also follow [`docs/orchestration.md`](docs/orchestration.md) §4 ("Adding a real event-driven flow") to add its `events`, `jobs`, `routing`, and relay wiring.
 
 See [`docs/api-docs-and-testing.md`](docs/api-docs-and-testing.md) for the API
 documentation and testing conventions (required route fields, tags, and the

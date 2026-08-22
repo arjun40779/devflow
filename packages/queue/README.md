@@ -42,7 +42,7 @@ packages/queue/
 ## Conventions
 
 - **Idempotency (both required):** deterministic `jobId` prevents duplicate **enqueue**; the handler must tolerate running **twice**.
-- **`jobId(ns, id)`** → `"<ns>:<id>"` — deterministic, stable across retries, no transient data.
+- **`jobId(ns, id)`** → `"<ns>.<id>"` — deterministic, stable across retries, no transient data (delimiter is `.`, not `:` — BullMQ rejects a bare colon in custom ids).
 - **Retry/backoff:** queue-level default + per-job override; `delay = min(maxDelay, base × 2^attempt) ± bounded jitter`.
 - **Timeout:** every job has one; a hung job fails → retries.
 - **Payload validation:** the job `schema` is validated at enqueue **and** at the worker boundary.
