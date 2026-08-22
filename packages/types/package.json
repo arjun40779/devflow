@@ -13,7 +13,7 @@
         "clean": "rimraf .turbo dist"
     },
     "devDependencies": {
-        "rimraf": "^6.0.1",
-        "typescript": "^5.6.3"
+        "rimraf": "catalog:",
+        "typescript": "catalog:"
     }
 }
