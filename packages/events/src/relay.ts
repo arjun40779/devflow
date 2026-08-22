@@ -1,0 +1,112 @@
+import { and, eq, inArray, isNull, lt, or } from 'drizzle-orm';
+import { schema, type Database } from '@devflow/database';
+import type { DomainEvent } from './event';
+import type { EventRoute } from './routing';
+
+export interface RelayOptions {
+  db: Database;
+  routes: EventRoute[];
+  /** Identifies this relay instance for claimed_by / lease diagnostics. */
+  relayId: string;
+  batchSize?: number;
+  /** How long a claim is held before another relay instance may reclaim it. */
+  leaseMs?: number;
+}
+
+export interface RelayResult {
+  claimed: number;
+  relayed: number;
+}
+
+const DEFAULT_BATCH_SIZE = 20;
+const DEFAULT_LEASE_MS = 60_000;
+
+function toDomainEvent(row: typeof schema.outboxEvents.$inferSelect): DomainEvent {
+  return {
+    id: row.id,
+    type: row.type,
+    organizationId: row.organizationId,
+    aggregateId: row.aggregateId,
+    correlationId: row.correlationId,
+    causationId: row.causationId ?? undefined,
+    occurredAt: row.occurredAt.toISOString(),
+    schemaVersion: row.schemaVersion,
+    aggregateVersion: row.aggregateVersion ?? undefined,
+    payload: row.payload,
+  };
+}
+
+/**
+ * Runs a single claim → publish → mark-relayed cycle. Intended to be called
+ * in a loop/interval from a worker process — not a held long-running
+ * transaction. Never holds a DB transaction open while calling out to Redis
+ * (see README "Relay: claim/lease, not a held transaction").
+ */
+export async function relayOutboxOnce(options: RelayOptions): Promise<RelayResult> {
+  const batchSize = options.batchSize ?? DEFAULT_BATCH_SIZE;
+  const leaseMs = options.leaseMs ?? DEFAULT_LEASE_MS;
+  const routesByType = new Map(options.routes.map((route) => [route.eventType, route]));
+
+  // Step 1: claim a batch. Short transaction, no external calls.
+  const claimExpiresAt = new Date(Date.now() + leaseMs);
+  const claimed = await options.db.transaction(async (tx) => {
+    const candidates = await tx
+      .select({ id: schema.outboxEvents.id })
+      .from(schema.outboxEvents)
+      .where(
+        and(
+          isNull(schema.outboxEvents.relayedAt),
+          or(
+            isNull(schema.outboxEvents.claimExpiresAt),
+            lt(schema.outboxEvents.claimExpiresAt, new Date()),
+          ),
+        ),
+      )
+      .limit(batchSize)
+      .for('update', { skipLocked: true });
+
+    if (candidates.length === 0) return [];
+
+    const ids = candidates.map((row) => row.id);
+
+    return tx
+      .update(schema.outboxEvents)
+      .set({ claimedAt: new Date(), claimedBy: options.relayId, claimExpiresAt })
+      .where(inArray(schema.outboxEvents.id, ids))
+      .returning();
+  });
+
+  // Step 2 + 3: publish outside the transaction, then mark relayed (or record failure).
+  let relayed = 0;
+
+  for (const row of claimed) {
+    const route = routesByType.get(row.type);
+
+    if (!route) {
+      await options.db
+        .update(schema.outboxEvents)
+        .set({
+          attempts: row.attempts + 1,
+          lastError: `No route registered for event type "${row.type}"`,
+        })
+        .where(eq(schema.outboxEvents.id, row.id));
+      continue;
+    }
+
+    try {
+      await route.enqueue(toDomainEvent(row));
+      await options.db
+        .update(schema.outboxEvents)
+        .set({ relayedAt: new Date() })
+        .where(eq(schema.outboxEvents.id, row.id));
+      relayed += 1;
+    } catch (error) {
+      await options.db
+        .update(schema.outboxEvents)
+        .set({ attempts: row.attempts + 1, lastError: (error as Error).message })
+        .where(eq(schema.outboxEvents.id, row.id));
+    }
+  }
+
+  return { claimed: claimed.length, relayed };
+}

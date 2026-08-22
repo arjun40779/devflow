@@ -200,4 +200,4 @@ This is an **at-least-once** guarantee, not exactly-once: a relay that crashes b
 | `test`      | Run Vitest             |
 | `clean`     | Remove build artifacts |
 
-> Not started yet — this document defines the contract. Implementation is blocked on the `outbox_events` migration landing in `@devflow/database` (in progress).
+> Implemented: `event.ts` (`defineEvent`), `outbox.ts` (`publishOutbox`), `routing.ts` (`defineRoute`), `relay.ts` (`relayOutboxOnce`). The relay's claim/publish/mark-relayed cycle is unit-tested at the routing/event layer; wiring it into a running worker loop (interval or queue-scheduled) is done by the consuming app.
