@@ -25,6 +25,13 @@ import type { Role } from '@devflow/types';
 const role: Role = roleSchema.parse(input); // validated + typed
 ```
 
+## Package relationships
+
+|                 |                                                                                                                                              |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Depends on**  | `@devflow/types` (enum arrays)                                                                                                               |
+| **Consumed by** | Not yet imported by an app — domain modules (Wave 1+) will use these schemas for request/response validation at HTTP and webhook boundaries. |
+
 ## Scripts
 
 | Script      | Purpose                |

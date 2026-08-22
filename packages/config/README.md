@@ -35,6 +35,13 @@ export type Env = typeof env;
 - Loading `.env` files is the **app's** responsibility (`import 'dotenv/config'`), not this package's — it stays side-effect free.
 - `createEnv` **throws** on invalid config so the process fails fast at startup.
 
+## Package relationships
+
+|                 |                                                                                                             |
+| --------------- | ----------------------------------------------------------------------------------------------------------- |
+| **Depends on**  | _(none)_ — zero internal `@devflow/*` dependencies                                                          |
+| **Consumed by** | `apps/api` (env schema, see [`apps/api/README.md`](../../apps/api/README.md)); `apps/worker` once it exists |
+
 ## Scripts
 
 | Script      | Purpose                |

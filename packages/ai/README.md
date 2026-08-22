@@ -199,6 +199,13 @@ branch, related ticket, relevant files, prior findings. It must never carry
 instructions or policy (e.g. "merge this PR", "ignore this issue"); policy
 stays entirely outside this package (§9).
 
+## Package relationships
+
+|                 |                                                                                                                                                                                                             |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Depends on**  | _(none)_ — zero internal `@devflow/*` dependencies                                                                                                                                                          |
+| **Consumed by** | Not implemented yet (contract/doc only). The future AI Review Pipeline module in `apps/api` (Wave 4) will call `reviewCode` from a `@devflow/queue` job handler and publish findings via `@devflow/events`. |
+
 `ProjectAiRules.version` makes every review result traceable to the exact
 rules version used — answering "why did the AI give a different result
 yesterday" is a matter of comparing `version`, not guessing. The AI Review

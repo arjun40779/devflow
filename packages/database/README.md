@@ -54,6 +54,13 @@ webhook route depend on.
   `publishOutbox` is called from **application code** that imports both
   packages — never from inside `@devflow/database` itself.
 
+## Package relationships
+
+|                 |                                                                                                                                                            |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Depends on**  | _(none)_ — zero internal `@devflow/*` dependencies (Drizzle ORM + `postgres` driver only)                                                                  |
+| **Consumed by** | `@devflow/events` (`DatabaseTransaction` type, `schema.outboxEvents`); `apps/api` (creates the process's one `Database` instance, runs migrations at boot) |
+
 ## Schema conventions (tenant-owned tables)
 
 Every tenant-owned domain table:

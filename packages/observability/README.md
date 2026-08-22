@@ -32,6 +32,13 @@ runWithCorrelationId(generateCorrelationId(), () => {
 
 > Pretty output requires the host app to provide `pino-pretty`.
 
+## Package relationships
+
+|                 |                                                                                                                                                                                                                                                    |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Depends on**  | _(none)_ — zero internal `@devflow/*` dependencies                                                                                                                                                                                                 |
+| **Consumed by** | `apps/api` (`createLogger` as the Fastify logger, `runWithCorrelationId` in the correlation-id plugin and as the queue worker's `runInContext`). Deliberately **not** a dependency of `@devflow/queue` — see that package's relationships section. |
+
 ## Scripts
 
 | Script      | Purpose                |

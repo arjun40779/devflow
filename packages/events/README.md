@@ -201,3 +201,10 @@ This is an **at-least-once** guarantee, not exactly-once: a relay that crashes b
 | `clean`     | Remove build artifacts |
 
 > Implemented: `event.ts` (`defineEvent`), `outbox.ts` (`publishOutbox`), `routing.ts` (`defineRoute`), `relay.ts` (`relayOutboxOnce`). The relay's claim/publish/mark-relayed cycle is unit-tested at the routing/event layer; wiring it into a running worker loop (interval or queue-scheduled) is done by the consuming app.
+
+## Package relationships
+
+|                 |                                                                                                                                                                                                                                 |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Depends on**  | `@devflow/database` (`DatabaseTransaction` type, `schema.outboxEvents`); `@devflow/queue` (`JobHandle`, `jobId`)                                                                                                                |
+| **Consumed by** | `apps/api` (`publishOutbox` inside service transactions, `relayOutboxOnce` on an interval, `defineRoute` wiring event → job) — see [`apps/api/docs/orchestration.md`](../../apps/api/docs/orchestration.md) for the full wiring |
