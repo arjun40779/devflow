@@ -43,17 +43,17 @@ Waves are dependency-ordered. Within a wave, modules can largely be built in par
 
 Platform scaffolding everything else imports. No product features here.
 
-| Module                                       | Purpose                                                                                   | Implements | Depends on       |
-| -------------------------------------------- | ----------------------------------------------------------------------------------------- | ---------- | ---------------- |
-| **Monorepo & tooling**                       | pnpm workspaces, Turborepo, ESLint/Prettier/TS configs, Docker for local Postgres + Redis | §6         | —                |
-| **`packages/config`**                        | Typed env loading + runtime config                                                        | §6         | monorepo         |
-| **`packages/database`**                      | Postgres + Drizzle, migrations, base schema                                               | §10        | config           |
-| **`packages/types` / `packages/validation`** | Shared domain types + Zod schemas                                                         | §6         | —                |
-| **`packages/events`**                        | Domain event contracts + dispatcher                                                       | §10        | types            |
-| **`packages/queue`**                         | BullMQ setup, retry/backoff/idempotency conventions                                       | §10        | config, database |
-| **`packages/observability`**                 | OpenTelemetry + Pino, correlation IDs                                                     | §11        | config           |
+| Module                                       | Purpose                                                                                   | Implements | Depends on             |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------- | ---------- | ---------------------- |
+| **Monorepo & tooling**                       | pnpm workspaces, Turborepo, ESLint/Prettier/TS configs, Docker for local Postgres + Redis | §6         | —                      |
+| **`packages/config`**                        | Typed env loading + runtime config                                                        | §6         | monorepo               |
+| **`packages/database`**                      | Postgres + Drizzle, migrations, base schema                                               | §10        | config                 |
+| **`packages/types` / `packages/validation`** | Shared domain types + Zod schemas                                                         | §6         | —                      |
+| **`packages/events`**                        | Domain event contracts + transactional-outbox relay                                       | §10        | types, database, queue |
+| **`packages/queue`**                         | BullMQ setup, retry/backoff/idempotency conventions                                       | §10        | config, database       |
+| **`packages/observability`**                 | OpenTelemetry + Pino, correlation IDs                                                     | §11        | config                 |
 
-**Done when:** `apps/api` boots, connects to Postgres + Redis, emits a structured log with a correlation ID, runs a migration, and enqueues + processes a no-op job.
+**Done when:** `apps/api` boots, connects to Postgres + Redis, emits a structured log with a correlation ID, runs a migration, and enqueues + processes a no-op job via the outbox relay (event written in a DB tx → relayed to BullMQ → consumed).
 
 ---
 
