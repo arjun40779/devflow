@@ -146,6 +146,10 @@ AI-generated content should be reviewable and should not silently make destructi
 
 Any rule the platform defines ("PR requires AI review before merge") is unenforceable if it lives only in the platform's database — a developer can merge directly on GitHub regardless of what your `work_items` row says. Wherever a workflow rule is meant to be a hard gate rather than a soft recommendation, it must be pushed into the source system's own enforcement (e.g., GitHub required status checks / branch protection), not just tracked internally. See §17a.
 
+### 3.8 `[NEW]` Every external tool is swappable (ports & adapters)
+
+No external vendor is hard-wired into business logic. Each integration category — source control, project management, chat/notifications, calendar, AI — is a **port** (a stable internal interface); each concrete vendor is an **adapter** behind that port, resolved at runtime from an organization's config. Swapping Plane→Jira, GitHub→GitLab, or Slack→Teams, or adding a new tool, must be a config + new-adapter change with **zero edits to core modules**. The MVP ships one adapter per category — **Plane, GitHub, Slack, and Calendar** — but the structure assumes more will be added. See §11a for the full framework.
+
 ---
 
 # 4. Recommended Technology Stack
@@ -314,14 +318,28 @@ devflow/
 │   ├── auth/
 │   ├── types/
 │   ├── validation/
-│   ├── ai/
-│   ├── github/
-│   ├── slack/
-│   ├── project-management/
 │   ├── events/
 │   ├── queue/
 │   ├── observability/
-│   └── ui/
+│   ├── ui/
+│   │
+│   ├── ai/                          # AiProvider port + adapters (§6) — same pattern as below
+│   │
+│   └── integrations/                # [NEW] provider framework — see §11a
+│       ├── core/                    # ports, registry, normalized models, capability + webhook contracts
+│       │   ├── ports/               # source-control · project-management · chat · calendar
+│       │   ├── models/              # normalized domain models (Repo, PullRequest, Issue, Message, CalendarEvent...)
+│       │   ├── webhooks/            # signature-verify strategy + inbound→domain-event normalizers
+│       │   ├── capabilities.ts      # capability descriptors + negotiation
+│       │   └── registry.ts          # resolve (category, providerKey) → configured adapter
+│       ├── source-control/
+│       │   └── github/              # implements SourceControlProvider  (later: gitlab/, bitbucket/)
+│       ├── project-management/
+│       │   └── plane/               # implements ProjectManagementProvider (later: jira/, linear/)
+│       ├── chat/
+│       │   └── slack/               # implements ChatProvider            (later: teams/, discord/)
+│       └── calendar/
+│           └── google/              # implements CalendarProvider         (later: outlook/, caldav/)
 │
 ├── tooling/
 │   ├── eslint/
@@ -437,7 +455,100 @@ Coordinates other modules rather than directly implementing GitHub/Slack logic. 
 
 ---
 
+# 11a. `[NEW]` Integration Provider Framework (Ports & Adapters + Registry)
+
+The platform's whole job is coordinating external tools, and the explicit requirement (§3.8) is that any tool can be swapped or added without touching business logic. This is achieved with a **ports-and-adapters (hexagonal)** design plus a **runtime registry**. Core modules (§9) depend only on category _ports_; concrete vendor _adapters_ are resolved at runtime from an organization's integration config. §12–§14b are specific adapters that all obey this framework.
+
+## Integration categories (ports)
+
+Each category is one capability interface. The MVP ships one adapter per category; more are added later behind the same port with no core changes.
+
+| Category             | Port interface              | MVP adapter       | Later adapters    |
+| -------------------- | --------------------------- | ----------------- | ----------------- |
+| Source control       | `SourceControlProvider`     | GitHub (App)      | GitLab, Bitbucket |
+| Project management   | `ProjectManagementProvider` | Plane             | Jira, Linear      |
+| Chat / notifications | `ChatProvider`              | Slack             | Teams, Discord    |
+| Calendar             | `CalendarProvider`          | Google Calendar   | Outlook, CalDAV   |
+| AI                   | `AiProvider` (§6)           | provider-agnostic | any               |
+
+## The three rules that keep it swappable
+
+1. **Business logic imports ports, never SDKs.** No core module imports `@octokit/*`, a Plane client, `@slack/*`, or `googleapis`. Those live only inside their adapter package. A vendor SDK imported outside `packages/integrations/<category>/<vendor>` is a lint failure.
+2. **Everything crossing a port is a normalized domain model, never a vendor payload.** GitHub's PR, GitLab's MR, and Bitbucket's PR all map to one internal `PullRequest`; Plane/Jira/Linear issues map to one `WorkItem` shape. The rest of the system never sees vendor-shaped data.
+3. **Adapters are resolved through the registry, never constructed directly.** Business code asks for "the project-management provider for this org," not "a PlaneProvider."
+
+## Registry / resolution
+
+```ts
+// resolved at runtime from the org's stored integration config
+const scm = registry.resolve('source-control', org.id); // → GitHubProvider today
+const pm = registry.resolve('project-management', org.id); // → PlaneProvider today
+const chat = registry.resolve('chat', org.id); // → SlackProvider today
+const cal = registry.resolve('calendar', org.id); // → GoogleCalendarProvider today
+```
+
+The registry loads the org's `integrations` row (category, provider_key, encrypted credentials), instantiates the matching adapter, and returns it typed only as the port. Swapping Plane→Jira is a `provider_key` change plus shipping the Jira adapter — no changes in work-item or workflow logic.
+
+## Capability negotiation (providers aren't equal)
+
+Not every provider supports every method (Plane has cycles/modules; Jira has sprints; some chat targets have no interactive commands; some calendars have no free/busy). Each adapter declares a **capability descriptor**:
+
+```ts
+interface ProviderCapabilities {
+  supports(capability: string): boolean; // e.g. "pr.checkRun", "issue.customFields", "calendar.freeBusy"
+}
+```
+
+- Core logic checks `capabilities.supports(...)` before invoking optional behavior, and the UI hides actions a provider can't perform rather than calling and failing at runtime.
+- Hard-gate features (e.g. §17a merge-gating needs `pr.checkRun`) degrade to advisory mode on providers lacking the capability — surfaced honestly in the UI, never silently.
+
+## Inbound webhook normalization
+
+Each adapter owns two things on the inbound path so §21's webhook route stays fully generic:
+
+1. A **signature-verification strategy** for its provider (GitHub `X-Hub-Signature-256`, Plane `X-Plane-Signature` HMAC-SHA256, Slack signing secret, Google channel token). The route calls `adapter.verify(rawBody, headers, secret)` without knowing the scheme.
+2. A **normalizer** mapping the provider's webhook payload → a canonical domain event (§19). GitHub `pull_request.closed`, Plane `workitem.updated`, and a Jira issue update all normalize into the same internal events.
+
+```text
+Provider webhook → generic route → adapter.verify() → persist webhook_events (§21a)
+      → adapter.normalize() → canonical DomainEvent → queue / orchestrator
+```
+
+The idempotency key per provider is the adapter's concern (GitHub `X-GitHub-Delivery`; Plane `event_id`, which is stable across retries — **not** `delivery_id`).
+
+## Integration config & credentials model
+
+```sql
+integrations (
+  id, organization_id,
+  category        text,   -- 'source-control' | 'project-management' | 'chat' | 'calendar'
+  provider_key    text,   -- 'github' | 'plane' | 'slack' | 'google-calendar'
+  credentials     jsonb,  -- encrypted at rest (§25/§26)
+  webhook_secret  text,   -- per-installation (§25b)
+  capabilities    jsonb,  -- optional per-instance overrides
+  status          text,   -- connected | disabled | error
+  unique (organization_id, category)   -- one active provider per category per org (MVP)
+)
+```
+
+The `unique (organization_id, category)` constraint encodes the MVP rule "one provider per category per org." Relaxing it later (e.g. multiple SCM providers per org) is an additive change, not a redesign.
+
+## Adding a new provider — the whole checklist
+
+1. Create `packages/integrations/<category>/<vendor>/`.
+2. Implement the category port + a capability descriptor.
+3. Add a signature-verify strategy and an inbound normalizer.
+4. Map vendor models ↔ normalized domain models.
+5. Register the adapter under its `provider_key`.
+6. Add OAuth/app-install config (§25) and adapter contract tests (§30).
+
+No changes to core modules, the webhook route, the event system, or the UI's business logic. That is the acceptance test for "did we keep it swappable."
+
+---
+
 # 12. GitHub Integration Module
+
+**`[REVISED]`** GitHub is the MVP **source-control adapter**: it implements the generic `SourceControlProvider` port (§11a). The interface below _is_ that port; `GitHubProvider` is one implementation. GitLab/Bitbucket adapters later implement the same port unchanged.
 
 ```ts
 interface GitHubProvider {
@@ -459,7 +570,9 @@ Business logic depends on this interface, not the GitHub SDK directly.
 
 # 13. Slack Integration Module
 
-Unchanged from v1: OAuth, workspace connection, channel mapping, notifications, interactive commands, Slack events, message formatting.
+**`[REVISED]`** Slack is the MVP **chat adapter**: it implements the generic `ChatProvider` port (§11a). Teams/Discord adapters later implement the same port; interactive commands are capability-gated (§11a) since not every chat provider supports them.
+
+OAuth, workspace connection, channel mapping, notifications, interactive commands, Slack events, message formatting.
 
 ```text
 PR_CREATED
@@ -497,7 +610,35 @@ v1 defined the adapter interface but not how sync actually happens. This is the 
 - Fields the platform derives from the dev workflow (status transitions triggered by PR/branch events, linked branch, linked PR) — platform-driven changes are pushed outbound and treated as authoritative for that field going forward.
 - A genuine collision (status changed in both systems within the same short window) is resolved last-write-wins **with the conflict recorded** in `work_item_activity` and visibly flagged in the UI — never resolved silently. Silent last-write-wins is the failure mode that erodes trust in this kind of tool fastest.
 
-This model should be documented per-provider in `packages/project-management`, since Jira and Linear differ in webhook granularity and rate limits.
+This model is documented per-provider under `packages/integrations/project-management/<vendor>` (§11a), since providers differ in webhook granularity and rate limits. **`[REVISED]` Plane is the MVP project-management adapter** — webhooks confirmed: HMAC-SHA256 `X-Plane-Signature`, dedupe on the payload's stable `event_id` (not `delivery_id`), and **no replay while a webhook is disabled**, so §10.4a reconciliation is the required safety net for missed Plane deliveries. Jira and Linear are added later behind the same `ProjectManagementProvider` port.
+
+---
+
+# 14b. `[NEW]` Calendar Integration Module
+
+Calendar is a first-class integration category from day one (MVP set: **Plane, GitHub, Slack, Calendar**). It follows the same port/adapter/registry rules as §11a — Google Calendar is the MVP adapter behind a generic `CalendarProvider` port; Outlook and CalDAV are added later unchanged.
+
+```ts
+interface CalendarProvider {
+  createEvent(input: CreateEventInput): Promise<CalendarEvent>;
+  updateEvent(id: string, input: UpdateEventInput): Promise<CalendarEvent>;
+  deleteEvent(id: string): Promise<void>;
+  listEvents(query: ListEventsQuery): Promise<CalendarEvent[]>;
+  getFreeBusy(query: FreeBusyQuery): Promise<FreeBusySlot[]>;
+}
+```
+
+Workflow use cases (keep the MVP surface small):
+
+- Create/track work-related events (review sessions, release windows, incident bridges) from workflow actions (§18).
+- `getFreeBusy` feeds smart reviewer recommendation (Phase 2, §15) — don't suggest a reviewer who's out of office.
+- Work-item target dates from the PM provider (§14) can surface as calendar events.
+
+Notes:
+
+- OAuth per §25; tokens encrypted at rest and never exposed to the browser.
+- Google Calendar push notifications (watch channels) normalize into domain events through the same inbound path as §11a rather than polling; providers without push fall back to polling.
+- Capability-gated: a provider lacking free/busy simply doesn't advertise `calendar.freeBusy`, and the reviewer-availability feature degrades gracefully (§11a).
 
 ---
 
@@ -931,8 +1072,11 @@ Risk          MEDIUM
 ```text
 ✓ Authentication
 ✓ Organization
-✓ GitHub connection (via GitHub App, §25a)
-✓ Slack connection
+✓ Integration provider framework (ports/adapters/registry, §11a)
+✓ GitHub connection (source-control adapter, via GitHub App, §25a)
+✓ Plane connection (project-management adapter, §14 / §14a)
+✓ Slack connection (chat adapter, §13)
+✓ Calendar connection (Google Calendar adapter, §14b)
 ✓ Work items
 ✓ Ticket creation
 ✓ AI ticket generation
@@ -957,6 +1101,8 @@ Risk          MEDIUM
 ✗ Multi-provider AI routing
 ✗ Full repository RAG
 ✗ Incident management
+✗ Multiple providers per category (one per category in MVP; framework supports more, §11a)
+✗ Additional adapters beyond Plane/GitHub/Slack/Calendar (Jira, Linear, GitLab, Teams — later, §11a)
 ✗ Durable-execution migration (§5a) — evaluate, don't build, in MVP
 ```
 
@@ -1020,25 +1166,27 @@ Only extract independent services when there is a concrete reason. Likely candid
 
 # 40. Key Architectural Decisions
 
-| Decision                           | Choice                                    | Reason                                                                                                                         |
-| ---------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Backend                            | Modular monolith                          | Faster development and clear boundaries                                                                                        |
-| Frontend                           | Next.js + React                           | Strong developer experience                                                                                                    |
-| Language                           | TypeScript                                | Shared types and ecosystem                                                                                                     |
-| Database                           | PostgreSQL                                | Relational workflow data                                                                                                       |
-| ORM                                | Drizzle                                   | Type-safe and lightweight                                                                                                      |
-| Cache                              | Redis                                     | Fast temporary state + pub/sub fan-out                                                                                         |
-| Jobs                               | BullMQ                                    | Reliable async processing for discrete tasks                                                                                   |
-| **`[NEW]` Workflow orchestration** | **Temporal or Inngest (Phase 2 eval)**    | **Durable, resumable multi-step workflows; BullMQ chaining alone doesn't give resumption or human-in-the-loop waits for free** |
-| GitHub integration                 | **`[REVISED]` GitHub App**, not OAuth App | Narrow per-org scopes, installation-based auth, Checks API access                                                              |
-| Integration model                  | Adapters                                  | Avoid vendor lock-in                                                                                                           |
-| Events                             | Domain events                             | Loose coupling                                                                                                                 |
-| AI                                 | Provider abstraction                      | Avoid AI vendor lock-in                                                                                                        |
-| API                                | REST                                      | Simple and explicit                                                                                                            |
-| Realtime                           | SSE + Redis pub/sub fan-out               | Server-driven updates that stay correct across multiple API instances                                                          |
-| Testing                            | Vitest + Playwright                       | Unit + E2E coverage                                                                                                            |
-| Deployment                         | Containers + managed services             | Portable and scalable                                                                                                          |
-| Architecture                       | Modular monolith                          | Avoid premature microservices                                                                                                  |
+| Decision                           | Choice                                          | Reason                                                                                                                         |
+| ---------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Backend                            | Modular monolith                                | Faster development and clear boundaries                                                                                        |
+| Frontend                           | Next.js + React                                 | Strong developer experience                                                                                                    |
+| Language                           | TypeScript                                      | Shared types and ecosystem                                                                                                     |
+| Database                           | PostgreSQL                                      | Relational workflow data                                                                                                       |
+| ORM                                | Drizzle                                         | Type-safe and lightweight                                                                                                      |
+| Cache                              | Redis                                           | Fast temporary state + pub/sub fan-out                                                                                         |
+| Jobs                               | BullMQ                                          | Reliable async processing for discrete tasks                                                                                   |
+| **`[NEW]` Workflow orchestration** | **Temporal or Inngest (Phase 2 eval)**          | **Durable, resumable multi-step workflows; BullMQ chaining alone doesn't give resumption or human-in-the-loop waits for free** |
+| GitHub integration                 | **`[REVISED]` GitHub App**, not OAuth App       | Narrow per-org scopes, installation-based auth, Checks API access                                                              |
+| **`[REVISED]` Integration model**  | **Ports & adapters + runtime registry (§11a)**  | Swap or add any external tool without touching business logic; MVP set = Plane, GitHub, Slack, Calendar                        |
+| **`[NEW]` Provider categories**    | SCM · Project mgmt · Chat · Calendar (+ AI)     | Each category is one port; MVP ships one adapter each, more added later unchanged                                              |
+| **`[NEW]` Calendar**               | Google Calendar (MVP) behind `CalendarProvider` | First-class integration category from day one; Outlook/CalDAV later                                                            |
+| Events                             | Domain events                                   | Loose coupling                                                                                                                 |
+| AI                                 | Provider abstraction                            | Avoid AI vendor lock-in                                                                                                        |
+| API                                | REST                                            | Simple and explicit                                                                                                            |
+| Realtime                           | SSE + Redis pub/sub fan-out                     | Server-driven updates that stay correct across multiple API instances                                                          |
+| Testing                            | Vitest + Playwright                             | Unit + E2E coverage                                                                                                            |
+| Deployment                         | Containers + managed services                   | Portable and scalable                                                                                                          |
+| Architecture                       | Modular monolith                                | Avoid premature microservices                                                                                                  |
 
 ---
 
@@ -1109,3 +1257,4 @@ Unchanged narrative from v1, now implicitly covered by the reconciliation (§10.
 **Plan → Start → Code → Review → Merge → Ship**
 
 Everything else should make those six steps faster, safer, and easier.
+
