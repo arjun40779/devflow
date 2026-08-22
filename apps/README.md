@@ -1,9 +1,11 @@
-# Applications live here
+# Applications
 
-Deployable apps are added in later phases (see `phase-1.md`):
+Deployable applications in the Devflow monorepo:
 
-- `web/` — Next.js frontend (Wave 5)
-- `api/` — Fastify HTTP API (Waves 1–4)
-- `worker/` — background job/worker process (Waves 2–4)
+| App | Package | Wave | Description |
+| --- | --- | --- | --- |
+| **web** | `@devflow/web` | 5 | Next.js frontend — see [`web/README.md`](./web/README.md) |
+| **api** | — | 1–4 | Fastify HTTP API (planned) |
+| **worker** | — | 2–4 | Background job worker (planned) |
 
 Each app is its own pnpm workspace package under `apps/*`.
