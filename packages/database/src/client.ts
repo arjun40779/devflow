@@ -8,7 +8,9 @@ import * as schema from './schema';
  * pass the resulting `Database` into modules — do not call it repeatedly.
  */
 export function createDatabase(connectionString: string) {
-  const client = postgres(connectionString);
+  // Suppress driver-level NOTICE console spam (e.g. idempotent "already
+  // exists, skipping" from the migrator's bookkeeping table/schema).
+  const client = postgres(connectionString, { onnotice: () => {} });
   return drizzle(client, { schema });
 }
 
