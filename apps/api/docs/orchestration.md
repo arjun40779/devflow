@@ -55,25 +55,25 @@ fixed order.
 
 ```mermaid
 sequenceDiagram
-    participant Boot as buildApp()
-    participant Cfg as @devflow/config
-    participant Obs as @devflow/observability
+    participant Boot as buildApp
+    participant Cfg as devflow-config
+    participant Obs as devflow-observability
     participant DB as databasePlugin
     participant Q as queuePlugin
     participant Relay as outboxRelayPlugin
 
-    Boot->>Cfg: createEnv(schema)
-    Cfg-->>Boot: env (typed, validated)
-    Boot->>Obs: createLogger({level, pretty})
-    Obs-->>Boot: logger → loggerInstance
-    Boot->>DB: createDatabase(env.DATABASE_URL)
-    DB->>DB: runMigrations(db)
+    Boot->>Cfg: createEnv schema
+    Cfg-->>Boot: env, typed and validated
+    Boot->>Obs: createLogger level, pretty
+    Obs-->>Boot: logger becomes loggerInstance
+    Boot->>DB: createDatabase env.DATABASE_URL
+    DB->>DB: runMigrations db
     DB-->>Boot: app.db decorated
-    Boot->>Q: createConnection(env.REDIS_URL)
-    Q->>Q: configureQueue({connection})
+    Boot->>Q: createConnection env.REDIS_URL
+    Q->>Q: configureQueue connection
     Q-->>Boot: app.redis decorated
-    Boot->>Relay: createWorker(app.redis, {runInContext})
-    Boot->>Relay: setInterval(relayOutboxOnce, 2000ms)
+    Boot->>Relay: createWorker app.redis, runInContext
+    Boot->>Relay: setInterval relayOutboxOnce, 2000ms
 ```
 
 ## 3. Request lifecycle — correlation id
@@ -89,12 +89,12 @@ sequenceDiagram
     participant Service
     participant Logger as app.log
 
-    Client->>Correlation: HTTP request (x-correlation-id header, optional)
-    Correlation->>Correlation: use header or generateCorrelationId()
-    Correlation->>Correlation: runWithCorrelationId(id, next request handling)
-    Correlation->>Route: request.correlationId = id
+    Client->>Correlation: HTTP request, x-correlation-id header optional
+    Correlation->>Correlation: use header or generateCorrelationId
+    Correlation->>Correlation: runWithCorrelationId id, next request handling
+    Correlation->>Route: set request.correlationId
     Route->>Service: pass correlationId explicitly
-    Service->>Logger: logger.info(...) — id attached automatically via ALS mixin
+    Service->>Logger: logger.info - id attached automatically via ALS mixin
     Correlation-->>Client: response, x-correlation-id header echoed back
 ```
 
@@ -122,26 +122,26 @@ the template when wiring a real domain event.
 ```mermaid
 sequenceDiagram
     participant Client
-    participant Router as POST /system/ping
-    participant Service as pingSystem()
-    participant DB as Postgres (outbox_events)
-    participant Relay as relayOutboxOnce (2s interval)
-    participant Queue as BullMQ (system-ping)
+    participant Router as system router
+    participant Service as pingSystem
+    participant DB as Postgres outbox_events
+    participant Relay as outbox relay, 2s interval
+    participant Queue as BullMQ system-ping
     participant Worker as systemPingJob worker
 
-    Client->>Router: POST {organizationId, message}
-    Router->>Service: pingSystem(db, {..., correlationId})
-    Service->>DB: db.transaction: publishOutbox(tx, event)
-    DB-->>Service: row committed (relayed_at = null)
-    Service-->>Router: {eventId}
-    Router-->>Client: 202 {eventId, correlationId}
+    Client->>Router: POST organizationId, message
+    Router->>Service: pingSystem db, correlationId
+    Service->>DB: db.transaction - publishOutbox tx, event
+    DB-->>Service: row committed, relayed_at is null
+    Service-->>Router: eventId
+    Router-->>Client: 202 eventId, correlationId
 
     Note over Relay: next tick, independent of the request
-    Relay->>DB: claim batch (SKIP LOCKED, set claim_expires_at)
-    Relay->>Queue: route.enqueue(event) → jobId = jobId('system-ping', event.id)
-    Relay->>DB: mark relayed_at (or record attempts/last_error on failure)
+    Relay->>DB: claim batch, SKIP LOCKED, set claim_expires_at
+    Relay->>Queue: route.enqueue event, jobId is namespaced
+    Relay->>DB: mark relayed_at, or record attempts/last_error
     Queue->>Worker: deliver job
-    Worker->>Worker: logger.info(...) inside runWithCorrelationId(event.correlationId)
+    Worker->>Worker: logger.info inside runWithCorrelationId
 ```
 
 The HTTP response (`202`) returns **before** the event is relayed — the
