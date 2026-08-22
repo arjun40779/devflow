@@ -8,4 +8,6 @@ export default defineConfig({
   clean: true,
   sourcemap: true,
   minify: false,
+  // Bundle internal workspace packages (shipped as TS source) into the output.
+  noExternal: [/^@devflow\//],
 });
