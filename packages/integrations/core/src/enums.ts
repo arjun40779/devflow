@@ -13,5 +13,6 @@ export const CHECK_RUN_CONCLUSIONS = [
 ] as const;
 export type CheckRunConclusion = (typeof CHECK_RUN_CONCLUSIONS)[number] | null;
 
-export const CONNECTION_STATUSES = ['connected', 'error', 'revoked'] as const;
-export type ConnectionStatus = (typeof CONNECTION_STATUSES)[number];
+// ConnectionStatus lives in @devflow/types (packages/database's schema needs it too;
+// database must never depend on this package).
+export type { ConnectionStatus } from '@devflow/types';

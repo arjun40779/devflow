@@ -6,5 +6,6 @@ export * from './invitations';
 export * from './teams';
 export * from './team-members';
 export * from './projects';
+export * from './integration-connections';
 export * from './outbox-events';
 export * from './webhook-events';

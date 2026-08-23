@@ -10,6 +10,9 @@ export type Role = (typeof ROLES)[number];
 export const INVITATION_STATUSES = ['pending', 'accepted', 'revoked', 'expired'] as const;
 export type InvitationStatus = (typeof INVITATION_STATUSES)[number];
 
+export const CONNECTION_STATUSES = ['connected', 'error', 'revoked'] as const;
+export type ConnectionStatus = (typeof CONNECTION_STATUSES)[number];
+
 export const WORK_ITEM_STATUSES = [
   'backlog',
   'ready',
