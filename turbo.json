@@ -10,7 +10,18 @@
     "dev": {
       "cache": false,
       "persistent": true,
-      "env": ["DATABASE_URL", "REDIS_URL"]
+      "env": [
+        "DATABASE_URL",
+        "REDIS_URL",
+        "GITHUB_OAUTH_CLIENT_ID",
+        "GITHUB_OAUTH_CLIENT_SECRET",
+        "GITHUB_OAUTH_CALLBACK_URL",
+        "WEB_APP_URL",
+        "SESSION_COOKIE_SECRET",
+        "SESSION_TTL_DAYS",
+        "SESSION_REFRESH_THRESHOLD_DAYS",
+        "OAUTH_STATE_TTL_MINUTES"
+      ]
     },
     "lint": {
       "dependsOn": ["^build"]
@@ -20,7 +31,18 @@
     },
     "test": {
       "dependsOn": ["^build"],
-      "env": ["DATABASE_URL", "REDIS_URL"]
+      "env": [
+        "DATABASE_URL",
+        "REDIS_URL",
+        "GITHUB_OAUTH_CLIENT_ID",
+        "GITHUB_OAUTH_CLIENT_SECRET",
+        "GITHUB_OAUTH_CALLBACK_URL",
+        "WEB_APP_URL",
+        "SESSION_COOKIE_SECRET",
+        "SESSION_TTL_DAYS",
+        "SESSION_REFRESH_THRESHOLD_DAYS",
+        "OAUTH_STATE_TTL_MINUTES"
+      ]
     },
     "clean": {
       "cache": false
