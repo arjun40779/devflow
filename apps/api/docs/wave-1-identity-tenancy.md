@@ -113,11 +113,15 @@ timestamps.
 
 ### 3.1 Auth flow — GitHub OAuth (user login)
 
-A separate, narrowly-scoped GitHub **OAuth App** (`read:user`, `user:email`
-only) is used for login. This is deliberately **not** the GitHub **App**
-Wave 2 will use for repo/PR access — conflating the two would mean a user's
-login session inherits repo-access scope it doesn't need, and would tie
-account login to an org having a GitHub App installed at all.
+A separate, narrowly-scoped GitHub **App** (registered dedicated to login —
+Account permissions: `Email addresses: Read-only` only, no repository/org
+access, no webhook, no installation required) is used for sign-in via its
+user-to-server web application flow. This is deliberately **not** the GitHub
+App Wave 2 will install org-wide for repo/PR/check access — conflating the
+two would mean a user's login session inherits repo-access permissions it
+doesn't need, and would tie account login to an org having that app
+installed at all. (GitHub Apps fix permissions at registration time rather
+than requesting OAuth scopes at runtime — see registration notes below.)
 
 ```mermaid
 sequenceDiagram
