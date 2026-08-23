@@ -15,6 +15,7 @@ import { correlationPlugin } from './plugins/correlation';
 import { databasePlugin } from './plugins/database';
 import { queuePlugin } from './plugins/queue';
 import { outboxRelayPlugin } from './plugins/outbox-relay';
+import { authPlugin } from './plugins/auth';
 import { registerRoutes } from './routes';
 
 export async function buildApp(): Promise<FastifyInstance> {
@@ -34,7 +35,9 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(sensible);
   // CSP disabled so the Scalar docs UI can load its assets.
   await app.register(helmet, { contentSecurityPolicy: false });
-  await app.register(cors, { origin: true });
+  // credentials: true so the session cookie is sent on cross-origin
+  // requests from apps/web; requires a reflected (non-wildcard) origin.
+  await app.register(cors, { origin: true, credentials: true });
   await app.register(rateLimit, { max: 100, timeWindow: '1 minute' });
 
   // Threads a correlation id through every request (and jobs it enqueues).
@@ -43,6 +46,8 @@ export async function buildApp(): Promise<FastifyInstance> {
   // Foundation infrastructure: Postgres, Redis/BullMQ, then the outbox
   // relay + worker that depend on both being available.
   await app.register(databasePlugin);
+  // Session cookie → request.user; depends on app.db.
+  await app.register(authPlugin);
   await app.register(queuePlugin);
   await app.register(outboxRelayPlugin);
 

@@ -22,6 +22,10 @@ export const openapiPlugin = fp(async (app) => {
       tags: [
         { name: 'Health', description: 'Liveness and readiness probes for the service.' },
         { name: 'System', description: 'Foundation-proving endpoints (Wave 0), not domain APIs.' },
+        {
+          name: 'Auth',
+          description: 'GitHub login, session, and logout (Wave 1 Identity & Access).',
+        },
       ],
     },
     transform: jsonSchemaTransform,
