@@ -218,6 +218,9 @@ importers:
       '@devflow/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@devflow/validation':
+        specifier: workspace:*
+        version: link:../../packages/validation
       '@fastify/cookie':
         specifier: 'catalog:'
         version: 11.1.2

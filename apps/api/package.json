@@ -20,6 +20,7 @@
     "@devflow/observability": "workspace:*",
     "@devflow/queue": "workspace:*",
     "@devflow/types": "workspace:*",
+    "@devflow/validation": "workspace:*",
     "@fastify/cookie": "catalog:",
     "@fastify/cors": "catalog:",
     "@fastify/helmet": "catalog:",
