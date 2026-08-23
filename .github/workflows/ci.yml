@@ -19,6 +19,9 @@ env:
   GITHUB_OAUTH_CLIENT_ID: ci-test-client-id
   GITHUB_OAUTH_CLIENT_SECRET: ci-test-client-secret
   SESSION_COOKIE_SECRET: ci-test-session-cookie-secret-0123456789ab
+  # Not a real secret — valid 32-byte base64 value only to satisfy the env schema
+  # and @devflow/integrations-core's parseCredentialsKey() length check.
+  INTEGRATION_CREDENTIALS_KEY: 2/cY8CUOzyYqIfOq051qlbdzZ2L7wwDXo5jyioBuBgk=
 
 jobs:
   ci:

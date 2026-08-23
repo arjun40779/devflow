@@ -20,7 +20,8 @@
         "SESSION_COOKIE_SECRET",
         "SESSION_TTL_DAYS",
         "SESSION_REFRESH_THRESHOLD_DAYS",
-        "OAUTH_STATE_TTL_MINUTES"
+        "OAUTH_STATE_TTL_MINUTES",
+        "INTEGRATION_CREDENTIALS_KEY"
       ]
     },
     "lint": {
@@ -41,7 +42,8 @@
         "SESSION_COOKIE_SECRET",
         "SESSION_TTL_DAYS",
         "SESSION_REFRESH_THRESHOLD_DAYS",
-        "OAUTH_STATE_TTL_MINUTES"
+        "OAUTH_STATE_TTL_MINUTES",
+        "INTEGRATION_CREDENTIALS_KEY"
       ]
     },
     "clean": {
