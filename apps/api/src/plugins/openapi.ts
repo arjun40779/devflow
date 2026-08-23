@@ -26,6 +26,10 @@ export const openapiPlugin = fp(async (app) => {
           name: 'Auth',
           description: 'GitHub login, session, and logout (Wave 1 Identity & Access).',
         },
+        {
+          name: 'Organizations',
+          description: 'Organizations, memberships, invitations, and teams (Wave 1).',
+        },
       ],
     },
     transform: jsonSchemaTransform,
