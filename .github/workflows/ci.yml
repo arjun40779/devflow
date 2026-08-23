@@ -14,6 +14,11 @@ env:
   NODE_ENV: test
   DATABASE_URL: postgres://devflow:devflow@localhost:5432/devflow
   REDIS_URL: redis://localhost:6379
+  # Not real secrets — CI never makes live GitHub OAuth calls (fetch is mocked
+  # in tests); these only need to satisfy apps/api's env schema.
+  GITHUB_OAUTH_CLIENT_ID: ci-test-client-id
+  GITHUB_OAUTH_CLIENT_SECRET: ci-test-client-secret
+  SESSION_COOKIE_SECRET: ci-test-session-cookie-secret-0123456789ab
 
 jobs:
   ci:
