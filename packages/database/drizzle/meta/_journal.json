@@ -22,6 +22,13 @@
       "when": 1787473241301,
       "tag": "0002_normal_killraven",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787502728287,
+      "tag": "0003_good_black_bird",
+      "breakpoints": true
     }
   ]
 }

@@ -21,6 +21,8 @@ const envSchema = z.object({
   SESSION_TTL_DAYS: z.coerce.number().int().positive().default(30),
   SESSION_REFRESH_THRESHOLD_DAYS: z.coerce.number().int().positive().default(7),
   OAUTH_STATE_TTL_MINUTES: z.coerce.number().int().positive().default(10),
+  // Base64-encoded 32-byte key; decoded/length-validated by parseCredentialsKey() at use (@devflow/integrations-core).
+  INTEGRATION_CREDENTIALS_KEY: sharedEnv.requiredString(),
 });
 
 export type Env = z.infer<typeof envSchema>;

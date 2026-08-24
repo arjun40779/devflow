@@ -1,0 +1,25 @@
+import { z } from 'zod';
+import { integrationCategorySchema, connectionStatusSchema } from '@devflow/validation';
+import { organizationParamsSchema } from '../organizations/schema';
+
+export const integrationCategoryParamsSchema = organizationParamsSchema.extend({
+  category: integrationCategorySchema,
+});
+
+export const connectionResponseSchema = z.object({
+  id: z.string(),
+  category: integrationCategorySchema,
+  provider: z.string(),
+  status: connectionStatusSchema,
+  externalAccount: z.unknown(),
+  tokenExpiresAt: z.coerce.date().nullable(),
+  lastSyncedAt: z.coerce.date().nullable(),
+  lastFailureAt: z.coerce.date().nullable(),
+  lastError: z.string().nullable(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+});
+
+export const connectionsListResponseSchema = z.object({
+  connections: z.array(connectionResponseSchema),
+});

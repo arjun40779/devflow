@@ -5,6 +5,7 @@ import {
   PRIORITIES,
   INTEGRATION_CATEGORIES,
   INVITATION_STATUSES,
+  CONNECTION_STATUSES,
 } from '@devflow/types';
 
 /** Zod schemas built from the canonical enum arrays in `@devflow/types`. */
@@ -14,3 +15,4 @@ export const workItemStatusSchema = z.enum(WORK_ITEM_STATUSES);
 export const prioritySchema = z.enum(PRIORITIES);
 export const integrationCategorySchema = z.enum(INTEGRATION_CATEGORIES);
 export const invitationStatusSchema = z.enum(INVITATION_STATUSES);
+export const connectionStatusSchema = z.enum(CONNECTION_STATUSES);
