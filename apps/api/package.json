@@ -17,6 +17,7 @@
     "@devflow/config": "workspace:*",
     "@devflow/database": "workspace:*",
     "@devflow/events": "workspace:*",
+    "@devflow/integrations-core": "workspace:*",
     "@devflow/observability": "workspace:*",
     "@devflow/queue": "workspace:*",
     "@devflow/types": "workspace:*",
