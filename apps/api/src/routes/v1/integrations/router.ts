@@ -1,14 +1,32 @@
 import { type FastifyInstance } from 'fastify';
 import { type ZodTypeProvider } from 'fastify-type-provider-zod';
-import { requireOrgRole } from '../../../modules/access/org-context';
+import { env } from '../../../config/env';
+import { requireOrgRole, resolveOrgContext } from '../../../modules/access/org-context';
+import {
+  requireAuth,
+  setIntegrationOAuthStateCookie,
+  consumeIntegrationOAuthStateCookie,
+} from '../../../plugins/auth';
+import { createOAuthState, verifyOAuthState } from '../../../modules/integrations/oauth-state';
 import {
   listConnections,
   disconnect,
   ConnectionNotFoundError,
   type ConnectionRow,
 } from '../../../modules/integrations/service/connections.service';
-import { integrationCategoryParamsSchema, connectionsListResponseSchema } from './schema';
+import {
+  completeGithubInstall,
+  decodeGithubAppPrivateKey,
+} from '../../../modules/integrations/service/github-connect.service';
+import { parseCredentialsKey } from '@devflow/integrations-core';
+import {
+  integrationCategoryParamsSchema,
+  connectionsListResponseSchema,
+  githubInstallCallbackQuerySchema,
+} from './schema';
 import { organizationParamsSchema } from '../organizations/schema';
+
+const OAUTH_STATE_TTL_MS = () => env.OAUTH_STATE_TTL_MINUTES * 60_000;
 
 /** Never spreads the row — `encryptedCredentials`/`credentialsIv` must never leave the service layer. */
 function toConnectionResponse(row: ConnectionRow) {
@@ -71,6 +89,86 @@ export async function integrationsRouter(app: FastifyInstance): Promise<void> {
       }
 
       return reply.code(204).send();
+    },
+  );
+
+  typed.get(
+    '/organizations/:organizationId/integrations/github/install',
+    {
+      preHandler: requireOrgRole('admin'),
+      schema: {
+        tags: ['Integrations'],
+        summary: 'Start a GitHub App install',
+        description:
+          'Sets a short-lived signed state cookie and redirects to the GitHub App install URL (design doc §5).',
+        params: organizationParamsSchema,
+      },
+    },
+    async (request, reply) => {
+      if (!request.orgContext) return reply.forbidden();
+
+      const state = createOAuthState(env.SESSION_COOKIE_SECRET, OAUTH_STATE_TTL_MS(), {
+        organizationId: request.orgContext.organizationId,
+        provider: 'github',
+      });
+      setIntegrationOAuthStateCookie(reply, state);
+
+      const url = new URL(`https://github.com/apps/${env.GITHUB_APP_SLUG}/installations/new`);
+      url.searchParams.set('state', state);
+      return reply.redirect(url.toString(), 302);
+    },
+  );
+
+  // Fixed path, not org-scoped: a GitHub App has exactly one static callback
+  // URL — the org id can only travel through the signed `state` (design doc
+  // §12), never a per-org path segment GitHub itself would need to know about.
+  typed.get(
+    '/integrations/github/callback',
+    {
+      preHandler: requireAuth,
+      schema: {
+        tags: ['Integrations'],
+        summary: 'Complete a GitHub App install',
+        description:
+          'Verifies the signed state, re-verifies the caller is an org admin/owner, fetches the ' +
+          'installation via the App JWT, and stores the connection.',
+        querystring: githubInstallCallbackQuerySchema,
+      },
+    },
+    async (request, reply) => {
+      if (!request.user) return reply.unauthorized();
+      const { installation_id: installationId, state } = request.query;
+
+      const parsedState = verifyOAuthState(env.SESSION_COOKIE_SECRET, state);
+      const cookieState = consumeIntegrationOAuthStateCookie(request, reply);
+      if (!parsedState || parsedState.provider !== 'github' || cookieState !== state) {
+        return reply.badRequest('Invalid or expired OAuth state');
+      }
+
+      if (!installationId) {
+        return reply.badRequest('Missing installation_id (install was not completed)');
+      }
+
+      const ctx = await resolveOrgContext(
+        app.db,
+        parsedState.organizationId,
+        request.user.id,
+        'admin',
+      );
+      if (!ctx) return reply.forbidden();
+
+      await completeGithubInstall(
+        app.db,
+        ctx,
+        {
+          appId: env.GITHUB_APP_ID,
+          privateKey: decodeGithubAppPrivateKey(env.GITHUB_APP_PRIVATE_KEY_BASE64),
+        },
+        parseCredentialsKey(env.INTEGRATION_CREDENTIALS_KEY),
+        installationId,
+      );
+
+      return reply.redirect(`${env.WEB_APP_URL}/settings/integrations?connected=github`, 302);
     },
   );
 }

@@ -5,7 +5,9 @@ import {
   createConnection as createConnectionRow,
   listConnectionsForOrganization as listConnectionsRows,
   findConnection,
+  findConnectionByInstallationId as findConnectionByInstallationIdRow,
   updateConnectionHealth as updateConnectionHealthRow,
+  updateConnectionCredentials as updateConnectionCredentialsRow,
   revokeConnection as revokeConnectionRow,
   type ConnectionRow,
   type CreateConnectionInput,
@@ -30,6 +32,14 @@ export function getConnection(
   category: IntegrationCategory,
 ): Promise<ConnectionRow | undefined> {
   return findConnection(db, ctx.organizationId, category);
+}
+
+/** Used only by webhook resolveConnection() implementations (design doc §3.1) — never by route handlers. */
+export function getConnectionByInstallationId(
+  db: Database,
+  installationId: string,
+): Promise<ConnectionRow | undefined> {
+  return findConnectionByInstallationIdRow(db, installationId);
 }
 
 export interface ConnectInput {
@@ -72,6 +82,31 @@ export async function disconnect(
 ): Promise<void> {
   const row = await revokeConnectionRow(db, ctx.organizationId, category);
   if (!row) throw new ConnectionNotFoundError();
+}
+
+/**
+ * Connects if no row exists yet for (org, category), otherwise refreshes the
+ * existing row's credentials/externalAccount and clears any prior error
+ * state — lets a user re-run an adapter's connect flow (e.g. reinstalling a
+ * GitHub App) without first having to disconnect.
+ */
+export async function connectOrReconnect(
+  db: Database,
+  ctx: OrgContext,
+  input: ConnectInput,
+): Promise<ConnectionRow> {
+  const existing = await findConnection(db, ctx.organizationId, input.category);
+  if (!existing) return connect(db, ctx, input);
+
+  const row = await updateConnectionCredentialsRow(db, ctx.organizationId, input.category, {
+    provider: input.provider,
+    externalAccount: input.externalAccount,
+    encryptedCredentials: input.encryptedCredentials,
+    credentialsIv: input.credentialsIv,
+    tokenExpiresAt: input.tokenExpiresAt,
+  });
+  if (!row) throw new ConnectionNotFoundError();
+  return row;
 }
 
 export interface RecordHealthInput {

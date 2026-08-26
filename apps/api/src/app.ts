@@ -16,6 +16,7 @@ import { databasePlugin } from './plugins/database';
 import { queuePlugin } from './plugins/queue';
 import { outboxRelayPlugin } from './plugins/outbox-relay';
 import { webhookRelayPlugin } from './plugins/webhook-relay';
+import { githubIntegrationPlugin } from './plugins/github-integration';
 import { authPlugin } from './plugins/auth';
 import { registerRoutes } from './routes';
 
@@ -52,6 +53,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(queuePlugin);
   await app.register(outboxRelayPlugin);
   await app.register(webhookRelayPlugin);
+  await app.register(githubIntegrationPlugin);
 
   // API docs (OpenAPI + Scalar).
   await app.register(openapiPlugin);

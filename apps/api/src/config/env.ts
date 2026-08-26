@@ -23,6 +23,12 @@ const envSchema = z.object({
   OAUTH_STATE_TTL_MINUTES: z.coerce.number().int().positive().default(10),
   // Base64-encoded 32-byte key; decoded/length-validated by parseCredentialsKey() at use (@devflow/integrations-core).
   INTEGRATION_CREDENTIALS_KEY: sharedEnv.requiredString(),
+  // Wave 2 SourceControl GitHub App — org-wide install, separate from Wave 1's login-only App.
+  GITHUB_APP_ID: sharedEnv.requiredString(),
+  // Base64-encoded PEM private key (PEM has embedded newlines, unsafe in a single-line .env value as-is).
+  GITHUB_APP_PRIVATE_KEY_BASE64: sharedEnv.requiredString(),
+  GITHUB_APP_WEBHOOK_SECRET: sharedEnv.requiredString(),
+  GITHUB_APP_SLUG: sharedEnv.requiredString(),
 });
 
 export type Env = z.infer<typeof envSchema>;

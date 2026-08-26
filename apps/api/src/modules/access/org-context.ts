@@ -28,6 +28,23 @@ function meetsMinRole(role: Role, minRole: Role): boolean {
 }
 
 /**
+ * Shared by `requireOrgRole` and OAuth-style callbacks that can't rely on a
+ * route param preHandler (design doc §10) — same membership + rank check,
+ * callable directly once an organization id has been recovered another way
+ * (e.g. from a signed OAuth state).
+ */
+export async function resolveOrgContext(
+  db: Parameters<typeof findMembership>[0],
+  organizationId: OrganizationId,
+  userId: UserId,
+  minRole: Role,
+): Promise<OrgContext | null> {
+  const membership = await findMembership(db, organizationId, userId);
+  if (!membership || !meetsMinRole(membership.role, minRole)) return null;
+  return { organizationId, userId, role: membership.role };
+}
+
+/**
  * Route-level authZ gate for org-scoped resources. Reads `:organizationId` from
  * the (already-validated) route params, loads the caller's membership, and
  * builds `OrgContext` — the only way to construct one (design doc §3.4).
@@ -38,20 +55,14 @@ export function requireOrgRole(minRole: Role) {
     if (!request.user) return reply.unauthorized();
 
     const { organizationId } = request.params as { organizationId: string };
-    const membership = await findMembership(
+    const ctx = await resolveOrgContext(
       request.server.db,
       organizationId as OrganizationId,
       request.user.id,
+      minRole,
     );
 
-    if (!membership || !meetsMinRole(membership.role, minRole)) {
-      return reply.forbidden();
-    }
-
-    request.orgContext = {
-      organizationId: organizationId as OrganizationId,
-      userId: request.user.id,
-      role: membership.role,
-    };
+    if (!ctx) return reply.forbidden();
+    request.orgContext = ctx;
   };
 }

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { type FastifyInstance } from 'fastify';
 import { schema } from '@devflow/database';
 import { eq } from 'drizzle-orm';
@@ -9,6 +9,17 @@ import { SESSION_COOKIE_NAME } from '../../../../plugins/auth';
 import { createOrganization } from '../../../../modules/organizations/service/organizations.service';
 import { connect } from '../../../../modules/integrations/service/connections.service';
 import type { OrganizationId, UserId } from '@devflow/types';
+
+function jsonResponse(body: unknown): Response {
+  return new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } });
+}
+
+function extractCookie(setCookieHeaders: string | string[] | undefined, name: string): string {
+  const headers = Array.isArray(setCookieHeaders) ? setCookieHeaders : [setCookieHeaders ?? ''];
+  const match = headers.find((h) => h.startsWith(`${name}=`));
+  if (!match) throw new Error(`${name} cookie not found in Set-Cookie headers`);
+  return match.split(';')[0]!;
+}
 
 async function makeAuthedUser(app: FastifyInstance, label: string) {
   const githubId = `route-integrations-test-${label}-${crypto.randomUUID()}`;
@@ -128,5 +139,161 @@ describe('integrations routes', () => {
       headers: { cookie: owner.cookie },
     });
     expect(res.statusCode).toBe(404);
+  });
+
+  describe('GitHub connect flow', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('redirects to the GitHub App install URL and sets a state cookie', async () => {
+      const owner = await makeAuthedUser(app, 'gh-install');
+      createdUserIds.push(owner.userId);
+      const organizationId = await makeOrg(owner, 'gh-install');
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/v1/organizations/${organizationId}/integrations/github/install`,
+        headers: { cookie: owner.cookie },
+      });
+
+      expect(res.statusCode).toBe(302);
+      const location = new URL(res.headers.location as string);
+      expect(location.hostname).toBe('github.com');
+      expect(location.pathname).toMatch(/^\/apps\/.+\/installations\/new$/);
+      expect(location.searchParams.get('state')).toBeTruthy();
+      expect(() =>
+        extractCookie(res.headers['set-cookie'], 'devflow_integration_oauth_state'),
+      ).not.toThrow();
+    });
+
+    it('rejects a non-admin starting an install', async () => {
+      const owner = await makeAuthedUser(app, 'gh-install-authz-owner');
+      createdUserIds.push(owner.userId);
+      const organizationId = await makeOrg(owner, 'gh-install-authz');
+      const outsider = await makeAuthedUser(app, 'gh-install-authz-outsider');
+      createdUserIds.push(outsider.userId);
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/v1/organizations/${organizationId}/integrations/github/install`,
+        headers: { cookie: outsider.cookie },
+      });
+      expect(res.statusCode).toBe(403);
+    });
+
+    it('completes the connect flow end-to-end and stores an encrypted connection', async () => {
+      const owner = await makeAuthedUser(app, 'gh-callback');
+      createdUserIds.push(owner.userId);
+      const organizationId = await makeOrg(owner, 'gh-callback');
+
+      const install = await app.inject({
+        method: 'GET',
+        url: `/api/v1/organizations/${organizationId}/integrations/github/install`,
+        headers: { cookie: owner.cookie },
+      });
+      const state = new URL(install.headers.location as string).searchParams.get('state')!;
+      const stateCookie = extractCookie(
+        install.headers['set-cookie'],
+        'devflow_integration_oauth_state',
+      );
+
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(
+          jsonResponse({
+            id: 555,
+            account: {
+              login: 'acme-org',
+              avatar_url: 'https://avatars.githubusercontent.com/acme',
+            },
+          }),
+        ),
+      );
+
+      const callback = await app.inject({
+        method: 'GET',
+        url: `/api/v1/integrations/github/callback?installation_id=555&setup_action=install&state=${state}`,
+        headers: { cookie: `${owner.cookie}; ${stateCookie}` },
+      });
+
+      expect(callback.statusCode).toBe(302);
+      expect(callback.headers.location).toContain('connected=github');
+
+      const list = await app.inject({
+        method: 'GET',
+        url: `/api/v1/organizations/${organizationId}/integrations`,
+        headers: { cookie: owner.cookie },
+      });
+      const connections = list.json().connections;
+      expect(connections).toHaveLength(1);
+      expect(connections[0].provider).toBe('github');
+      expect(connections[0].externalAccount).toEqual({
+        login: 'acme-org',
+        avatarUrl: 'https://avatars.githubusercontent.com/acme',
+      });
+    });
+
+    it('rejects a callback with a tampered/invalid state', async () => {
+      const owner = await makeAuthedUser(app, 'gh-callback-bad-state');
+      createdUserIds.push(owner.userId);
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/v1/integrations/github/callback?installation_id=555&state=not-a-real-state',
+        headers: { cookie: owner.cookie },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('rejects a callback missing installation_id', async () => {
+      const owner = await makeAuthedUser(app, 'gh-callback-missing-install');
+      createdUserIds.push(owner.userId);
+      const organizationId = await makeOrg(owner, 'gh-callback-missing-install');
+
+      const install = await app.inject({
+        method: 'GET',
+        url: `/api/v1/organizations/${organizationId}/integrations/github/install`,
+        headers: { cookie: owner.cookie },
+      });
+      const state = new URL(install.headers.location as string).searchParams.get('state')!;
+      const stateCookie = extractCookie(
+        install.headers['set-cookie'],
+        'devflow_integration_oauth_state',
+      );
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/v1/integrations/github/callback?setup_action=request&state=${state}`,
+        headers: { cookie: `${owner.cookie}; ${stateCookie}` },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('rejects a callback from a user without admin access to the target organization', async () => {
+      const owner = await makeAuthedUser(app, 'gh-callback-authz-owner');
+      createdUserIds.push(owner.userId);
+      const organizationId = await makeOrg(owner, 'gh-callback-authz');
+      const outsider = await makeAuthedUser(app, 'gh-callback-authz-outsider');
+      createdUserIds.push(outsider.userId);
+
+      const install = await app.inject({
+        method: 'GET',
+        url: `/api/v1/organizations/${organizationId}/integrations/github/install`,
+        headers: { cookie: owner.cookie },
+      });
+      const state = new URL(install.headers.location as string).searchParams.get('state')!;
+      const stateCookie = extractCookie(
+        install.headers['set-cookie'],
+        'devflow_integration_oauth_state',
+      );
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/v1/integrations/github/callback?installation_id=555&state=${state}`,
+        headers: { cookie: `${outsider.cookie}; ${stateCookie}` },
+      });
+      expect(res.statusCode).toBe(403);
+    });
   });
 });

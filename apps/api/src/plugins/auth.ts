@@ -66,6 +66,36 @@ export function consumeOAuthStateCookie(
   return unsigned.valid ? unsigned.value : null;
 }
 
+const INTEGRATION_OAUTH_STATE_COOKIE_NAME = 'devflow_integration_oauth_state';
+const INTEGRATION_OAUTH_STATE_COOKIE_PATH = '/api/v1/organizations';
+
+/**
+ * Additional (not sole) layer for integration connect flows — the state
+ * value itself is self-contained/signed (design doc §12); this cookie only
+ * adds single-use enforcement.
+ */
+export function setIntegrationOAuthStateCookie(reply: FastifyReply, state: string): void {
+  reply.cookie(INTEGRATION_OAUTH_STATE_COOKIE_NAME, state, {
+    ...baseCookieOptions(),
+    path: INTEGRATION_OAUTH_STATE_COOKIE_PATH,
+    maxAge: env.OAUTH_STATE_TTL_MINUTES * 60,
+  });
+}
+
+export function consumeIntegrationOAuthStateCookie(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): string | null {
+  const raw = request.cookies[INTEGRATION_OAUTH_STATE_COOKIE_NAME];
+  reply.clearCookie(INTEGRATION_OAUTH_STATE_COOKIE_NAME, {
+    path: INTEGRATION_OAUTH_STATE_COOKIE_PATH,
+  });
+
+  if (!raw) return null;
+  const unsigned = request.unsignCookie(raw);
+  return unsigned.valid ? unsigned.value : null;
+}
+
 /**
  * Resolves the session cookie into `request.user` on every request (nullable
  * — most routes are public). Pure authN: no org concept here, see the
