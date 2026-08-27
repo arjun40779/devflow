@@ -296,4 +296,86 @@ describe('integrations routes', () => {
       expect(res.statusCode).toBe(403);
     });
   });
+
+  describe('Plane connect flow', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('connects a workspace after validating the token', async () => {
+      const owner = await makeAuthedUser(app, 'plane-connect');
+      createdUserIds.push(owner.userId);
+      const organizationId = await makeOrg(owner, 'plane-connect');
+
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn()
+          .mockResolvedValue(jsonResponse({ id: 'workspace-uuid-1', slug: 'acme', name: 'Acme' })),
+      );
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/v1/organizations/${organizationId}/integrations/plane/connect`,
+        headers: { cookie: owner.cookie },
+        payload: {
+          workspaceSlug: 'acme',
+          apiToken: 'plane_api_test-token',
+          webhookSecret: 'plane_wh_test-secret',
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const body = res.json();
+      expect(body.provider).toBe('plane');
+      expect(body.externalAccount).toEqual({
+        workspaceSlug: 'acme',
+        workspaceId: 'workspace-uuid-1',
+      });
+      expect(body.encryptedCredentials).toBeUndefined();
+    });
+
+    it('rejects a non-admin connecting', async () => {
+      const owner = await makeAuthedUser(app, 'plane-connect-authz-owner');
+      createdUserIds.push(owner.userId);
+      const organizationId = await makeOrg(owner, 'plane-connect-authz');
+      const outsider = await makeAuthedUser(app, 'plane-connect-authz-outsider');
+      createdUserIds.push(outsider.userId);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/v1/organizations/${organizationId}/integrations/plane/connect`,
+        headers: { cookie: outsider.cookie },
+        payload: {
+          workspaceSlug: 'acme',
+          apiToken: 'plane_api_test-token',
+          webhookSecret: 'plane_wh_test-secret',
+        },
+      });
+      expect(res.statusCode).toBe(403);
+    });
+
+    it('returns 400 when the token fails to validate against the workspace', async () => {
+      const owner = await makeAuthedUser(app, 'plane-connect-invalid-token');
+      createdUserIds.push(owner.userId);
+      const organizationId = await makeOrg(owner, 'plane-connect-invalid-token');
+
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(new Response('unauthorized', { status: 401 })),
+      );
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/v1/organizations/${organizationId}/integrations/plane/connect`,
+        headers: { cookie: owner.cookie },
+        payload: {
+          workspaceSlug: 'acme',
+          apiToken: 'bad-token',
+          webhookSecret: 'plane_wh_test-secret',
+        },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+  });
 });

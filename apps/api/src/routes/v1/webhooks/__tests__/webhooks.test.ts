@@ -49,7 +49,7 @@ describe('webhooks route', () => {
   it('returns 404 for a known provider with no registered handler', async () => {
     const res = await app.inject({
       method: 'POST',
-      url: '/api/v1/webhooks/plane',
+      url: '/api/v1/webhooks/slack',
       payload: { hello: 'world' },
     });
     expect(res.statusCode).toBe(404);

@@ -29,3 +29,9 @@ export const githubInstallCallbackQuerySchema = z.object({
   setup_action: z.string().optional(),
   state: z.string(),
 });
+
+export const planeConnectBodySchema = z.object({
+  workspaceSlug: z.string().min(1),
+  apiToken: z.string().min(1),
+  webhookSecret: z.string().min(1),
+});

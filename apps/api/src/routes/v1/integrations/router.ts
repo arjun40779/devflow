@@ -18,11 +18,15 @@ import {
   completeGithubInstall,
   decodeGithubAppPrivateKey,
 } from '../../../modules/integrations/service/github-connect.service';
+import { connectPlaneWorkspace } from '../../../modules/integrations/service/plane-connect.service';
 import { parseCredentialsKey } from '@devflow/integrations-core';
+import { PlaneApiError } from '@devflow/integrations-plane';
 import {
   integrationCategoryParamsSchema,
+  connectionResponseSchema,
   connectionsListResponseSchema,
   githubInstallCallbackQuerySchema,
+  planeConnectBodySchema,
 } from './schema';
 import { organizationParamsSchema } from '../organizations/schema';
 
@@ -169,6 +173,42 @@ export async function integrationsRouter(app: FastifyInstance): Promise<void> {
       );
 
       return reply.redirect(`${env.WEB_APP_URL}/settings/integrations?connected=github`, 302);
+    },
+  );
+
+  typed.post(
+    '/organizations/:organizationId/integrations/plane/connect',
+    {
+      preHandler: requireOrgRole('admin'),
+      schema: {
+        tags: ['Integrations'],
+        summary: 'Connect a Plane workspace',
+        description:
+          'Token-based connect (design doc §6) — validates the API token against the workspace ' +
+          'before storing the connection. Admin/owner only.',
+        params: organizationParamsSchema,
+        body: planeConnectBodySchema,
+        response: { 201: connectionResponseSchema },
+      },
+    },
+    async (request, reply) => {
+      if (!request.orgContext) return reply.forbidden();
+
+      try {
+        const row = await connectPlaneWorkspace(
+          app.db,
+          request.orgContext,
+          parseCredentialsKey(env.INTEGRATION_CREDENTIALS_KEY),
+          request.body,
+        );
+        reply.code(201);
+        return toConnectionResponse(row);
+      } catch (error) {
+        if (error instanceof PlaneApiError) {
+          return reply.badRequest(`Could not verify the Plane workspace/token: ${error.message}`);
+        }
+        throw error;
+      }
     },
   );
 }
