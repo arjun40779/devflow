@@ -1,5 +1,5 @@
 import { schema, type Database, type DatabaseTransaction } from '@devflow/database';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import type { IntegrationCategory, ConnectionStatus } from '@devflow/types';
 
 export type ConnectionRow = typeof schema.integrationConnections.$inferSelect;
@@ -46,6 +46,17 @@ export function findConnection(
   });
 }
 
+/** Webhook resolveConnection() lookup (design doc §3.1) — installation id lives in the plaintext external_account jsonb. */
+export function findConnectionByInstallationId(db: Database, installationId: string) {
+  return db.query.integrationConnections.findFirst({
+    where: and(
+      eq(schema.integrationConnections.category, 'source-control'),
+      eq(schema.integrationConnections.provider, 'github'),
+      sql`${schema.integrationConnections.externalAccount}->>'installationId' = ${installationId}`,
+    ),
+  });
+}
+
 export interface UpdateConnectionHealthInput {
   status?: ConnectionStatus;
   lastSyncedAt?: Date;
@@ -85,6 +96,40 @@ export async function revokeConnection(
       status: 'revoked',
       encryptedCredentials: '',
       credentialsIv: '',
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(schema.integrationConnections.organizationId, organizationId),
+        eq(schema.integrationConnections.category, category),
+      ),
+    )
+    .returning();
+  return row;
+}
+
+export interface UpdateConnectionCredentialsInput {
+  provider: string;
+  externalAccount: unknown;
+  encryptedCredentials: string;
+  credentialsIv: string;
+  tokenExpiresAt?: Date;
+}
+
+/** Reconnect path: refreshes credentials/externalAccount and clears any prior error state. */
+export async function updateConnectionCredentials(
+  db: Database | DatabaseTransaction,
+  organizationId: string,
+  category: IntegrationCategory,
+  input: UpdateConnectionCredentialsInput,
+): Promise<ConnectionRow | undefined> {
+  const [row] = await db
+    .update(schema.integrationConnections)
+    .set({
+      ...input,
+      status: 'connected',
+      lastError: null,
+      lastFailureAt: null,
       updatedAt: new Date(),
     })
     .where(

@@ -18,6 +18,7 @@
     "@devflow/database": "workspace:*",
     "@devflow/events": "workspace:*",
     "@devflow/integrations-core": "workspace:*",
+    "@devflow/integrations-github": "workspace:*",
     "@devflow/observability": "workspace:*",
     "@devflow/queue": "workspace:*",
     "@devflow/types": "workspace:*",

@@ -23,3 +23,9 @@ export const connectionResponseSchema = z.object({
 export const connectionsListResponseSchema = z.object({
   connections: z.array(connectionResponseSchema),
 });
+
+export const githubInstallCallbackQuerySchema = z.object({
+  installation_id: z.string().optional(),
+  setup_action: z.string().optional(),
+  state: z.string(),
+});
