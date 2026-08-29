@@ -57,6 +57,17 @@ export function findConnectionByInstallationId(db: Database, installationId: str
   });
 }
 
+/** Same purpose as `findConnectionByInstallationId`, keyed by Plane's workspace_id instead. */
+export function findConnectionByWorkspaceId(db: Database, workspaceId: string) {
+  return db.query.integrationConnections.findFirst({
+    where: and(
+      eq(schema.integrationConnections.category, 'project-management'),
+      eq(schema.integrationConnections.provider, 'plane'),
+      sql`${schema.integrationConnections.externalAccount}->>'workspaceId' = ${workspaceId}`,
+    ),
+  });
+}
+
 export interface UpdateConnectionHealthInput {
   status?: ConnectionStatus;
   lastSyncedAt?: Date;

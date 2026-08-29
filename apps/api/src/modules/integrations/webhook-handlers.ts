@@ -15,6 +15,7 @@ export const webhookHandlers: Record<string, WebhookHandler> = {};
  */
 export const webhookEventTypeHeaders: Record<string, string> = {
   github: 'x-github-event',
+  plane: 'x-plane-event',
 };
 
 export function getEventTypeHeader(provider: string): string {

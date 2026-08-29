@@ -6,6 +6,7 @@ import {
   listConnectionsForOrganization as listConnectionsRows,
   findConnection,
   findConnectionByInstallationId as findConnectionByInstallationIdRow,
+  findConnectionByWorkspaceId as findConnectionByWorkspaceIdRow,
   updateConnectionHealth as updateConnectionHealthRow,
   updateConnectionCredentials as updateConnectionCredentialsRow,
   revokeConnection as revokeConnectionRow,
@@ -40,6 +41,14 @@ export function getConnectionByInstallationId(
   installationId: string,
 ): Promise<ConnectionRow | undefined> {
   return findConnectionByInstallationIdRow(db, installationId);
+}
+
+/** Same purpose as `getConnectionByInstallationId`, keyed by Plane's workspace_id instead. */
+export function getConnectionByWorkspaceId(
+  db: Database,
+  workspaceId: string,
+): Promise<ConnectionRow | undefined> {
+  return findConnectionByWorkspaceIdRow(db, workspaceId);
 }
 
 export interface ConnectInput {

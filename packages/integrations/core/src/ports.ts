@@ -62,12 +62,15 @@ export interface SourceControlPort {
 }
 
 export interface CreateIssueInput {
+  /** The project the issue is created in -- a connection is workspace-scoped, not project-scoped (design doc §6). */
+  projectId: string;
   title: string;
   description?: string;
   assigneeExternalId?: string;
 }
 
 export interface UpdateIssueInput {
+  projectId: string;
   externalId: string;
   title?: string;
   description?: string;
@@ -78,7 +81,7 @@ export interface UpdateIssueInput {
 export interface ProjectManagementPort {
   createIssue(ctx: ProviderContext, input: CreateIssueInput): Promise<Issue>;
   updateIssue(ctx: ProviderContext, input: UpdateIssueInput): Promise<Issue>;
-  getIssue(ctx: ProviderContext, input: { externalId: string }): Promise<Issue>;
+  getIssue(ctx: ProviderContext, input: { projectId: string; externalId: string }): Promise<Issue>;
   createComment(ctx: ProviderContext, input: CreateCommentInput): Promise<Comment>;
 }
 
